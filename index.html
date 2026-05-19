@@ -6,6 +6,17 @@
 <title>Pokémon TCG — Tournament Manager</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="css/style.css">
+<script>
+// Mostra erros JS visíveis na tela (remove após debug)
+window.onerror = function(msg, src, line, col, err) {
+  document.getElementById('app').innerHTML =
+    '<div style="padding:20px;font-family:monospace;background:#fef2f2;color:#dc2626;border-radius:8px;margin:20px">' +
+    '<strong>Erro JS:</strong><br>' + msg +
+    '<br><small>' + (src||'') + ':' + line + '</small>' +
+    '<br><pre style="margin-top:8px;font-size:12px">' + (err&&err.stack||'') + '</pre></div>';
+  return false;
+};
+</script>
 </head>
 <body>
 <div id="app"></div>
