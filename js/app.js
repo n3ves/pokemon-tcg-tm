@@ -146,15 +146,6 @@ function notify(msg, type='info') {
   if (el) el.innerHTML = renderNotif();
 }
 
-let notifTimer = null;
-function notify(msg, type='info') {
-  G.notif = { msg, type };
-  clearTimeout(notifTimer);
-  notifTimer = setTimeout(()=>{ G.notif=null; render(); }, 3000);
-  const el = document.getElementById('notif-slot');
-  if (el) el.innerHTML = G.notif ? `<div class="notif ${G.notif.type}">${esc(G.notif.msg)}</div>` : '';
-}
-
 function renderHome() {
   const recent = [...G.tours].sort((a,b)=>b.createdAt-a.createdAt).slice(0,6);
   return `
