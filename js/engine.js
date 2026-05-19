@@ -49,21 +49,72 @@ function p1Count(pid, rounds) {
       if (p.p1 === pid && !p.isBye) c++;
   return c;
 }
-function owp(pid, rounds) {
-  const o = getOpps(pid, rounds);
-  if (!o.length) return 0;
-  return o.map(id => Math.max(calcStats(id, rounds).wr, 0.25)).reduce((a,b)=>a+b,0) / o.length;
+// Win% para cálculo de OWP (regra 5.6.1 + 5.3.3.1):
+// • BYE rounds excluídos do numerador E denominador
+// • Dropped players: cap máximo de 75% (não 100%)
+// • Mínimo: 25%
+function winPctForOWP(pid, rounds, players) {
+  const isDropped = players?.find(p=>p.id===pid)?.dropped || false;
+  let w = 0, total = 0;
+  for (const rnd of rounds) {
+    for (const p of rnd.pairings) {
+      if (p.result === null || p.result === undefined) continue;
+      // BYE: não conta como vitória NEM como rodada no cálculo de win%
+      if (p.p2 === 'BYE' && p.p1 === pid) continue;
+      const is1 = p.p1 === pid, is2 = p.p2 === pid;
+      if (!is1 && !is2) continue;
+      total++;
+      if ((p.result===R.P1&&is1)||(p.result===R.P2&&is2)) w++;
+      // TIE e DL: contam como rodada mas não como vitória
+    }
+  }
+  if (!total) return 0.25;
+  const maxPct = isDropped ? 0.75 : 1.0;
+  return Math.max(0.25, Math.min(maxPct, w / total));
 }
-function oowp(pid, rounds) {
+function owp(pid, rounds, players) {
   const o = getOpps(pid, rounds);
   if (!o.length) return 0;
-  return o.map(id => owp(id, rounds)).reduce((a,b)=>a+b,0) / o.length;
+  return o.map(id => winPctForOWP(id, rounds, players)).reduce((a,b)=>a+b,0) / o.length;
+}
+function oowp(pid, rounds, players) {
+  const o = getOpps(pid, rounds);
+  if (!o.length) return 0;
+  return o.map(id => owp(id, rounds, players)).reduce((a,b)=>a+b,0) / o.length;
 }
 function getStandings(players, rounds, divFilter) {
-  return players
+  const list = players
     .filter(p => !p.dq && (!divFilter || p.division === divFilter))
-    .map(p => ({ ...p, ...calcStats(p.id, rounds), owp: owp(p.id, rounds), oowp: oowp(p.id, rounds) }))
-    .sort((a,b) => b.mp-a.mp || b.owp-a.owp || b.oowp-a.oowp || b.wr-a.wr || a.name.localeCompare(b.name));
+    .map(p => ({ ...p, ...calcStats(p.id, rounds),
+      owp:  owp(p.id, rounds, players),
+      oowp: oowp(p.id, rounds, players) }));
+
+  list.sort((a,b) => {
+    if (b.mp  !== a.mp)  return b.mp  - a.mp;   // 1. Match points
+    if (b.owp !== a.owp) return b.owp - a.owp;   // 2. OWP
+    if (b.oowp!== a.oowp)return b.oowp- a.oowp;  // 3. OOWP
+
+    // 4. Head-to-head (regra 5.5.1.1 — só quando exatamente 2 empatados)
+    const tied = list.filter(p =>
+      p.mp===a.mp && p.owp===a.owp && p.oowp===a.oowp);
+    if (tied.length === 2) {
+      const oppMap = buildOppMap(rounds);
+      const played = oppMap.get(a.id)?.has(b.id);
+      if (played) {
+        // Quem ganhou o confronto direto?
+        for (const rnd of rounds) {
+          for (const pair of rnd.pairings) {
+            if ((pair.p1===a.id&&pair.p2===b.id)||(pair.p1===b.id&&pair.p2===a.id)) {
+              if ((pair.result===R.P1&&pair.p1===b.id)||(pair.result===R.P2&&pair.p2===b.id)) return 1;
+              if ((pair.result===R.P1&&pair.p1===a.id)||(pair.result===R.P2&&pair.p2===a.id)) return -1;
+            }
+          }
+        }
+      }
+    }
+    return a.name.localeCompare(b.name); // fallback alfabético
+  });
+  return list;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -102,22 +153,41 @@ function generateSwiss(tournament) {
   let tableNum   = 1;
 
   if (settings.separateDivisions) {
-    // ── Age Modified: divisões com menos de 2 jogadores ativos
-    // são mescladas com Masters para pareamento (como no TOM).
-    // Standings continuam separados pela divisão real do jogador.
-    const MIN_DIV = 2;
+    // ── Age Modified (regra 5.2.1): divisão com < 6 jogadores
+    // é mesclada com a divisão adjacente para pareamento.
+    // Standings e top cut continuam separados por divisão.
+    const MIN_DIV = 6;
     const divPools = {};
     for (const div of DIVS) divPools[div] = active.filter(p => p.division === div);
 
-    const mergePool = []; // jogadores de divisões pequenas → vão para Masters
-    for (const div of ['Juniors','Seniors']) {
-      if (divPools[div].length > 0 && divPools[div].length < MIN_DIV) {
-        log.push(`\n⚠ ${div} (${divPools[div].length} jogador) → Age Modified: mesclado com Masters`);
-        mergePool.push(...divPools[div]);
-        divPools[div] = [];
+    // Age-Combined cascading (regra 5.2.1):
+    // Jr < 6 → merge Jr+Sr; se Jr+Sr < 6 → merge tudo com Masters
+    // Sr < 6 (mas Jr >= 6) → Sr merge com Masters
+    // Só Masters < 6 → Masters merge com Sr
+    const Jr = divPools['Juniors'], Sr = divPools['Seniors'], Ma = divPools['Masters'];
+
+    if (Jr.length > 0 && Jr.length < MIN_DIV) {
+      // Merge Jr → Sr
+      log.push(`⚠ Age Combined: Juniors (${Jr.length}) + Seniors`);
+      divPools['Seniors'] = [...Sr, ...Jr];
+      divPools['Juniors'] = [];
+      if (divPools['Seniors'].length < MIN_DIV) {
+        // Still < 6: merge Jr+Sr → Masters
+        log.push(`⚠ Age Combined: Jr+Sr (${divPools['Seniors'].length}) + Masters`);
+        divPools['Masters'] = [...Ma, ...divPools['Seniors']];
+        divPools['Seniors'] = [];
       }
+    } else if (Sr.length > 0 && Sr.length < MIN_DIV) {
+      // Sr < 6 but Jr >= 6: merge Sr → Masters
+      log.push(`⚠ Age Combined: Seniors (${Sr.length}) + Masters`);
+      divPools['Masters'] = [...Ma, ...Sr];
+      divPools['Seniors'] = [];
+    } else if (Ma.length > 0 && Ma.length < MIN_DIV && Sr.length >= MIN_DIV) {
+      // Only Masters < 6: merge Masters → Seniors
+      log.push(`⚠ Age Combined: Masters (${Ma.length}) + Seniors`);
+      divPools['Seniors'] = [...Sr, ...Ma];
+      divPools['Masters'] = [];
     }
-    divPools['Masters'].push(...mergePool);
 
     for (const div of DIVS) {
       if (!divPools[div].length) continue;
@@ -350,22 +420,41 @@ function generateSwiss(tournament) {
   let tableNum   = 1;
 
   if (settings.separateDivisions) {
-    // ── Age Modified: divisões com menos de 2 jogadores ativos
-    // são mescladas com Masters para pareamento (como no TOM).
-    // Standings continuam separados pela divisão real do jogador.
-    const MIN_DIV = 2;
+    // ── Age Modified (regra 5.2.1): divisão com < 6 jogadores
+    // é mesclada com a divisão adjacente para pareamento.
+    // Standings e top cut continuam separados por divisão.
+    const MIN_DIV = 6;
     const divPools = {};
     for (const div of DIVS) divPools[div] = active.filter(p => p.division === div);
 
-    const mergePool = []; // jogadores de divisões pequenas → vão para Masters
-    for (const div of ['Juniors','Seniors']) {
-      if (divPools[div].length > 0 && divPools[div].length < MIN_DIV) {
-        log.push(`\n⚠ ${div} (${divPools[div].length} jogador) → Age Modified: mesclado com Masters`);
-        mergePool.push(...divPools[div]);
-        divPools[div] = [];
+    // Age-Combined cascading (regra 5.2.1):
+    // Jr < 6 → merge Jr+Sr; se Jr+Sr < 6 → merge tudo com Masters
+    // Sr < 6 (mas Jr >= 6) → Sr merge com Masters
+    // Só Masters < 6 → Masters merge com Sr
+    const Jr = divPools['Juniors'], Sr = divPools['Seniors'], Ma = divPools['Masters'];
+
+    if (Jr.length > 0 && Jr.length < MIN_DIV) {
+      // Merge Jr → Sr
+      log.push(`⚠ Age Combined: Juniors (${Jr.length}) + Seniors`);
+      divPools['Seniors'] = [...Sr, ...Jr];
+      divPools['Juniors'] = [];
+      if (divPools['Seniors'].length < MIN_DIV) {
+        // Still < 6: merge Jr+Sr → Masters
+        log.push(`⚠ Age Combined: Jr+Sr (${divPools['Seniors'].length}) + Masters`);
+        divPools['Masters'] = [...Ma, ...divPools['Seniors']];
+        divPools['Seniors'] = [];
       }
+    } else if (Sr.length > 0 && Sr.length < MIN_DIV) {
+      // Sr < 6 but Jr >= 6: merge Sr → Masters
+      log.push(`⚠ Age Combined: Seniors (${Sr.length}) + Masters`);
+      divPools['Masters'] = [...Ma, ...Sr];
+      divPools['Seniors'] = [];
+    } else if (Ma.length > 0 && Ma.length < MIN_DIV && Sr.length >= MIN_DIV) {
+      // Only Masters < 6: merge Masters → Seniors
+      log.push(`⚠ Age Combined: Masters (${Ma.length}) + Seniors`);
+      divPools['Seniors'] = [...Sr, ...Ma];
+      divPools['Masters'] = [];
     }
-    divPools['Masters'].push(...mergePool);
 
     for (const div of DIVS) {
       if (!divPools[div].length) continue;
@@ -612,9 +701,10 @@ function parseTDF(xmlStr) {
 
   // ── Tournament metadata ──────────────────────────────────
   const dataEl   = doc.querySelector('data');
-  const name     = dataEl?.querySelector('name')?.textContent?.trim()    || 'Torneio Importado';
-  const city     = dataEl?.querySelector('city')?.textContent?.trim()    || '';
-  const state    = dataEl?.querySelector('state')?.textContent?.trim()   || '';
+  const name        = dataEl?.querySelector('name')?.textContent?.trim()    || 'Torneio Importado';
+  const sanctionedId= dataEl?.querySelector('id')?.textContent?.trim()      || '';
+  const city        = dataEl?.querySelector('city')?.textContent?.trim()    || '';
+  const state       = dataEl?.querySelector('state')?.textContent?.trim()   || '';
   const orgEl    = dataEl?.querySelector('organizer');
   const orgName  = orgEl?.getAttribute('name')                           || '';
   const orgPopId = orgEl?.getAttribute('popid')                          || '';
@@ -755,6 +845,7 @@ function parseTDF(xmlStr) {
     state,
     date,
     mode:         'custom',
+    sanctionedId,
     status,
     currentRound: rounds.length,
     players,
@@ -804,7 +895,7 @@ function generateTDF(t) {
   ln.push(`<tournament type="2" stage="${tStage}" version="1.74" gametype="TRADING_CARD_GAME" mode="CUSTOM">`);
   ln.push(`\t<data>`);
   ln.push(`\t\t<name>${X(t.name)}</name>`);
-  ln.push(`\t\t<id></id>`);
+  ln.push(`\t\t<id>${X(t.sanctionedId||'')}</id>`);
   ln.push(`\t\t<city>${X(t.city||'')}</city>`);
   ln.push(`\t\t<state>${X(t.state||'')}</state>`);
   ln.push(`\t\t<country>${X(orgCountry)}</country>`);

@@ -76,6 +76,24 @@ function mtour(fn) {
 
 function closeM() { G.modal=null; render(); }
 
+function openEditTourModal() {
+  G.modal = { type: 'edit-tour' }; render();
+}
+
+function saveEditTour() {
+  const name = document.getElementById('et-name')?.value?.trim();
+  if (!name) return notify('Nome é obrigatório','err');
+  mtour(t => {
+    t.name        = name;
+    t.city        = document.getElementById('et-city')?.value?.trim()||'';
+    t.state       = document.getElementById('et-state')?.value?.trim()||'';
+    t.date        = document.getElementById('et-date')?.value||'';
+    t.sanctionedId= document.getElementById('et-sanction')?.value?.trim()||'';
+  });
+  closeM();
+  notify('Informações atualizadas','ok');
+}
+
 function blob(data, filename, type='application/json') {
   const b=new Blob([data],{type});
   const url=URL.createObjectURL(b);
@@ -330,7 +348,10 @@ function renderCreateTour() {
   <div class="f"><label>Nome *</label><input id="ct-name" placeholder="Liga Cup Rio — Maio 2025" value="${esc(d.name||'')}"></div>
   <div class="g2"><div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')}"></div>
   <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')}"></div></div>
-  <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}"></div>
+  <div class="g2">
+    <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="f"><label>ID Sancionada</label><input id="ct-sanction" placeholder="##-##-######" value="${esc(d.sanctionedId||'')}" style="font-family:var(--mono)"></div>
+  </div>
 </div>
 <div class="card mb16">
   <h3 class="mb12">Formato</h3>
@@ -444,8 +465,11 @@ function renderReg(t) {
       ${n>0?`<span class="muted small">${rec} rodadas rec. · ${cut?'Top '+cut:'Sem top cut'}</span>`:''}
     </div>
   </div>
-  ${t.status==='registration'?`<button class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
-    <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
+  <div class="fx gap6">
+    <button class="btn btn-sm" onclick="openEditTourModal()"><i class="ti ti-edit"></i> Editar info</button>
+    ${t.status==='registration'?`<button class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
+      <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
+  </div>
 </div>
 ${t.status==='registration'?`
 <div class="g2 gap16">
@@ -948,6 +972,25 @@ function renderModal() {
 </div>`;
   }
 
+  if (m.type === 'edit-tour') {
+    const t = ct();
+    body = \`
+<div class="mtitle"><i class="ti ti-edit"></i> Editar informações do torneio</div>
+<div class="f"><label>Nome *</label><input id="et-name" value="\${esc(t?.name||'')}"></div>
+<div class="g2">
+  <div class="f"><label>Cidade</label><input id="et-city" value="\${esc(t?.city||'')}"></div>
+  <div class="f"><label>Estado</label><input id="et-state" value="\${esc(t?.state||'')}"></div>
+</div>
+<div class="g2">
+  <div class="f"><label>Data</label><input type="date" id="et-date" value="\${t?.date||''}"></div>
+  <div class="f"><label>ID Sancionada</label><input id="et-sanction" placeholder="##-##-######" value="\${esc(t?.sanctionedId||'')}" style="font-family:var(--mono)"></div>
+</div>
+<div class="fx gap6" style="justify-content:flex-end;margin-top:4px">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveEditTour()"><i class="ti ti-check"></i> Salvar</button>
+</div>\`;
+  }
+
   if (m.type === 'judge') {
     const t = ct(), rnd = t?.rounds[t.currentRound-1];
     const pair = rnd?.pairings.find(p=>p.id===m.pid);
@@ -1172,6 +1215,7 @@ function createTour() {
     name, city: document.getElementById('ct-city')?.value?.trim()||'',
     state: document.getElementById('ct-state')?.value?.trim()||'',
     date: document.getElementById('ct-date')?.value||'',
+    sanctionedId: document.getElementById('ct-sanction')?.value?.trim()||'',
     mode: d.mode||'cup',
     status: 'registration',
     players:[], rounds:[], currentRound:0, topBracket:null,
@@ -1524,6 +1568,7 @@ Object.assign(window, {
   saveSettings, clearData, reloadFromSupabase, forceSyncAll,
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
+  openEditTourModal, saveEditTour,
 });
 
 // ── Init ─────────────────────────────────────────────────────
