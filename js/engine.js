@@ -248,19 +248,22 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
   // ── BYE ASSIGNMENT ──────────────────────────────────────
   let byePlayer = null;
   if (pool.length % 2 === 1) {
-    // BYE priority: pior record → Jr/Sr antes de Masters no mesmo record
-    const divByePrio = { Juniors: 0, Seniors: 1, Masters: 2 };
-    const byeCandidates = [...pool].sort((a,b) =>
-      a.mp - b.mp ||                                          // 1. pior record
-      (divByePrio[a.division]??2) - (divByePrio[b.division]??2) || // 2. Jr/Sr antes de Masters
-      rng() - 0.5                                             // 3. aleatoriedade
-    );
-    let byeIdx = byeCandidates.findIndex(p => !p.hadBye);
-    if (byeIdx === -1) byeIdx = 0; // todos já tiveram bye → dá para o pior
-    byePlayer = byeCandidates[byeIdx];
+    // BYE — regra 5.6.1:
+    // 1. Candidatos: quem ainda não recebeu BYE
+    // 2. Entre os candidatos, pior record (menor MP)
+    // 3. Empate em MP → aleatório (RNG seeded)
+    // 4. Se todos já tiveram BYE → volta ao pior record, aleatório no empate
+    const noBye  = pool.filter(p => !p.hadBye);
+    const pool4bye = noBye.length > 0 ? noBye : pool; // fallback: todos já tiveram
+    const minMP  = Math.min(...pool4bye.map(p => p.mp));
+    const worst  = pool4bye.filter(p => p.mp === minMP);
+    // Shuffle worst group (seeded) and take first
+    const shuffledWorst = shuffle(worst, rng);
+    byePlayer = shuffledWorst[0];
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})`);
+    const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────
@@ -519,19 +522,22 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
   // ── BYE ASSIGNMENT ──────────────────────────────────────
   let byePlayer = null;
   if (pool.length % 2 === 1) {
-    // BYE priority: pior record → Jr/Sr antes de Masters no mesmo record
-    const divByePrio = { Juniors: 0, Seniors: 1, Masters: 2 };
-    const byeCandidates = [...pool].sort((a,b) =>
-      a.mp - b.mp ||                                          // 1. pior record
-      (divByePrio[a.division]??2) - (divByePrio[b.division]??2) || // 2. Jr/Sr antes de Masters
-      rng() - 0.5                                             // 3. aleatoriedade
-    );
-    let byeIdx = byeCandidates.findIndex(p => !p.hadBye);
-    if (byeIdx === -1) byeIdx = 0; // todos já tiveram bye → dá para o pior
-    byePlayer = byeCandidates[byeIdx];
+    // BYE — regra 5.6.1:
+    // 1. Candidatos: quem ainda não recebeu BYE
+    // 2. Entre os candidatos, pior record (menor MP)
+    // 3. Empate em MP → aleatório (RNG seeded)
+    // 4. Se todos já tiveram BYE → volta ao pior record, aleatório no empate
+    const noBye  = pool.filter(p => !p.hadBye);
+    const pool4bye = noBye.length > 0 ? noBye : pool; // fallback: todos já tiveram
+    const minMP  = Math.min(...pool4bye.map(p => p.mp));
+    const worst  = pool4bye.filter(p => p.mp === minMP);
+    // Shuffle worst group (seeded) and take first
+    const shuffledWorst = shuffle(worst, rng);
+    byePlayer = shuffledWorst[0];
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})`);
+    const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────
