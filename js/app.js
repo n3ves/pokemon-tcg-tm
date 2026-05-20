@@ -1789,6 +1789,18 @@ function printPairings(tid) {
   openPrintWindow({ _body: body }, `Pairings R${t.currentRound} — ${t.name}`);
 }
 
+function makeBarcodeSVG(w, h, seed) {
+  let s = seed >>> 0;
+  let bars = '', x = 0, col = 0;
+  while (x < w) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const bw = (s % 3) + 1;
+    if (col % 2 === 0) bars += `<rect x="${x}" y="0" width="${bw}" height="${h}" fill="#000"/>`;
+    x += bw; col++;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars}</svg>`;
+}
+
 function printMatchSlips(tid) {
   const t = G.tours.find(x=>x.id===tid)||ct(); if(!t)return;
   const rnd = t.rounds[t.currentRound-1]; if(!rnd)return notify('Nenhuma rodada ativa','warn');
@@ -1797,119 +1809,115 @@ function printMatchSlips(tid) {
     .filter(p=>!p.isBye)
     .sort((a,b)=>(a.table||0)-(b.table||0));
 
-  // CSS — narrow receipt-style, 3 per row on A4
   const css = `
-    body { margin: 8mm; }
-    .page-title { text-align:center; font-size:11px; margin-bottom:8px; color:#444; }
-    .slips-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:4mm; }
-    .slip {
-      border: 1px solid #000;
-      font-family: Arial, sans-serif;
-      font-size: 10px;
-      page-break-inside: avoid;
-      overflow: hidden;
-    }
-    /* TOP HALF — Player 1 side (normal orientation) */
-    .slip-top {
-      padding: 6px 8px;
-      border-bottom: 1px dashed #999;
-    }
-    .slip-event { font-size:8px; color:#555; }
-    .slip-round-row { display:flex; justify-content:space-between; font-size:9px; color:#444; margin-top:2px; }
-    .slip-table { font-size:13px; font-weight:bold; margin:4px 0 2px; }
-    .slip-name { font-size:12px; font-weight:bold; }
-    .slip-info { font-size:9px; color:#444; margin-top:1px; }
-    .slip-winner-label { font-size:9px; font-weight:bold; text-align:center; margin:6px 0 2px; }
-    .slip-init-row { display:flex; align-items:center; gap:4px; font-size:8px; color:#555; margin-top:6px; }
-    .slip-init-line { flex:1; border-bottom:1px solid #000; height:12px; }
-    /* MIDDLE — game checkboxes */
-    .slip-mid {
-      padding: 6px 8px;
-      background: #f9f9f9;
-      border-top: 1px dashed #999;
-      border-bottom: 1px dashed #999;
-    }
-    .slip-instruction { font-size:7.5px; color:#555; text-align:center; margin-bottom:5px; line-height:1.3; }
-    .games-row { display:flex; justify-content:space-around; align-items:center; }
-    .game-box { text-align:center; }
-    .game-box-label { font-size:7px; color:#666; margin-bottom:2px; }
-    .game-check { width:16px; height:16px; border:1px solid #000; border-radius:2px; margin:0 auto; }
-    .tie-circle { width:28px; height:28px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:bold; margin:0 auto; }
-    /* BOTTOM HALF — Player 2 side (rotated 180°) */
-    .slip-bottom {
-      padding: 6px 8px;
-      transform: rotate(180deg);
-    }
-    @media print {
-      .no-print { display:none !important; }
-      @page { size: A4; margin: 8mm; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,Helvetica,sans-serif;background:#f0f0f0;padding:8mm}
+    .page-title{text-align:center;font-size:10px;margin-bottom:6mm;color:#444}
+    .slips-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5mm}
+    .slip{background:#fff;border:1px solid #000;display:flex;flex-direction:row;height:52mm;overflow:hidden;page-break-inside:avoid}
+    .side{width:22mm;display:flex;flex-direction:row;flex-shrink:0;overflow:hidden}
+    .side-r{border-left:1px solid #ddd}
+    .side-l{border-right:1px solid #ddd}
+    .col-id{width:7mm;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:2mm 1mm}
+    .col-bc{width:5mm;display:flex;align-items:center;justify-content:center}
+    .col-text{flex:1;display:flex;align-items:center;justify-content:center}
+    .vtext{writing-mode:vertical-rl;font-family:Arial,Helvetica,sans-serif;font-size:7.5pt;letter-spacing:.3px;white-space:nowrap;text-align:center;line-height:1.2}
+    .vtext-flip{transform:rotate(180deg)}
+    .vtext strong{font-size:8.5pt;font-weight:bold;letter-spacing:.5px}
+    .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:2mm 3mm}
+    .dashed-box{border:1px dashed #000;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:1.5mm 2mm}
+    .key-line{font-size:6.5pt;letter-spacing:.3px}
+    .pname{font-size:9pt;font-weight:bold;letter-spacing:.3px;text-align:center}
+    .rnd{font-size:6.5pt;text-align:center;margin-top:0.5mm}
+    .instr{font-size:5.5pt;text-align:center;line-height:1.4;color:#222}
+    .games{display:flex;flex-direction:column;gap:1mm;align-items:flex-start}
+    .gitem{display:flex;align-items:center;gap:2mm;font-size:6.5pt}
+    .chk{width:3mm;height:3mm;border:0.5px solid #000;display:inline-block;flex-shrink:0}
+    .tie{font-size:8pt;font-weight:bold;letter-spacing:1px;margin-top:1mm}
+    @media print{
+      .no-print{display:none!important}
+      @page{size:A4 portrait;margin:8mm}
+      body{background:#fff;padding:0}
     }
   `;
 
-  const slips = pairs.map(p => {
+  function slip(p) {
     const p1 = t.players.find(x=>x.id===p.p1);
     const p2 = t.players.find(x=>x.id===p.p2);
     const s1 = calcStats(p.p1, t.rounds.slice(0,-1));
     const s2 = calcStats(p.p2, t.rounds.slice(0,-1));
-    const eventLine = esc(t.name);
-    const roundLine = `Rodada ${t.currentRound} / ${t.settings.totalRounds}`;
+    const tname = esc(t.name).toUpperCase();
+    const seed1 = (p.table||1) * 9371;
+    const seed2 = (p.table||1) * 7463;
+    const seedC = (p.table||1) * 5284;
+    const p1n = (p1?.name||'?').toUpperCase();
+    const p2n = (p2?.name||'?').toUpperCase();
+    const p1id = p1?.playerId ? p1.playerId + ' - ' + (p1?.division[0]||'?') + 'A' : (p1?.division[0]||'?') + 'A';
+    const p2id = p2?.playerId ? p2.playerId + ' - ' + (p2?.division[0]||'?') + 'A' : (p2?.division[0]||'?') + 'A';
 
     return `<div class="slip">
-
-      <!-- P1 side (top, normal) -->
-      <div class="slip-top">
-        <div class="slip-event">${eventLine}</div>
-        <div class="slip-round-row"><span>${roundLine}</span><span>${t.date||''}</span></div>
-        <div class="slip-table">MESA #${p.table}</div>
-        <div class="slip-name">${esc(p1?.name||'?')} [${p1?.division[0]||'?'}]</div>
-        <div class="slip-info">${p1?.playerId||''} &nbsp;·&nbsp; ${s1.w}/${s1.l}/${s1.t} (${s1.mp})</div>
-        <div class="slip-winner-label">WINNER &nbsp; Player 1</div>
-        <div class="slip-init-row">Assinar: <span class="slip-init-line"></span></div>
-      </div>
-
-      <!-- Middle: game results -->
-      <div class="slip-mid">
-        <div class="slip-instruction">Marque quem vence cada game. Circule WINNER ou TIE para o match. Ambos assinam ao final.</div>
-        <div class="games-row">
-          <div class="game-box">
-            <div class="game-box-label">game 1</div>
-            <div class="game-check"></div>
-          </div>
-          <div class="game-box">
-            <div class="game-box-label">game 2</div>
-            <div class="game-check"></div>
-          </div>
-          <div class="game-box">
-            <div class="game-box-label">game 3</div>
-            <div class="game-check"></div>
-          </div>
-          <div class="game-box">
-            <div class="game-box-label">TIE</div>
-            <div class="tie-circle">TIE</div>
+      <!-- LEFT SIDE -->
+      <div class="side side-l">
+        <div class="col-id">
+          <span class="vtext vtext-flip" style="font-size:6pt">${p1id}</span>
+          <span class="vtext vtext-flip" style="font-size:5.5pt">${s1.w}/${s1.l}/${s1.t} (${s1.mp})</span>
+        </div>
+        <div class="col-bc">${makeBarcodeSVG(8, 46*3.78, seed1)}</div>
+        <div class="col-text">
+          <div class="vtext vtext-flip">
+            <strong>TABLE ${p.table}</strong><br>
+            ${esc(p1n)}<br>
+            <strong>WINNER</strong>
           </div>
         </div>
       </div>
-
-      <!-- P2 side (bottom, rotated 180°) -->
-      <div class="slip-bottom">
-        <div class="slip-event">${eventLine}</div>
-        <div class="slip-round-row"><span>${roundLine}</span><span>${t.date||''}</span></div>
-        <div class="slip-table">MESA #${p.table}</div>
-        <div class="slip-name">${esc(p2?.name||'?')} [${p2?.division[0]||'?'}]</div>
-        <div class="slip-info">${p2?.playerId||''} &nbsp;·&nbsp; ${s2.w}/${s2.l}/${s2.t} (${s2.mp})</div>
-        <div class="slip-winner-label">WINNER &nbsp; Player 2</div>
-        <div class="slip-init-row">Assinar: <span class="slip-init-line"></span></div>
+      <!-- CENTER -->
+      <div class="center">
+        <div class="dashed-box">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:0.5mm">
+            <span class="key-line">key: ${String(seed1).slice(0,6)}</span>
+            ${makeBarcodeSVG(120, 10*3.78, seedC)}
+          </div>
+          <div>
+            <div class="pname">${esc(p1n)}</div>
+            <div class="rnd">Round ${t.currentRound} / ${t.settings.totalRounds}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1mm">
+            <div class="instr">checkmark who wins each game,<br>then both players sign after end</div>
+            <div class="games">
+              <div class="gitem"><span class="chk"></span><span>game 1</span></div>
+              <div class="gitem"><span class="chk"></span><span>game 2</span></div>
+              <div class="gitem"><span class="chk"></span><span>game 3</span></div>
+            </div>
+            <div class="tie">TIE</div>
+          </div>
+        </div>
       </div>
-
+      <!-- RIGHT SIDE -->
+      <div class="side side-r">
+        <div class="col-text">
+          <div class="vtext">
+            <strong>TABLE ${p.table}</strong><br>
+            ${esc(p2n)}<br>
+            <strong>WINNER</strong>
+          </div>
+        </div>
+        <div class="col-bc">${makeBarcodeSVG(8, 46*3.78, seed2)}</div>
+        <div class="col-id">
+          <span class="vtext" style="font-size:6pt">${p2id}</span>
+          <span class="vtext" style="font-size:5.5pt">${s2.w}/${s2.l}/${s2.t} (${s2.mp})</span>
+        </div>
+      </div>
     </div>`;
-  }).join('');
+  }
 
   const body = `
 <div class="page-title">
-  <strong>${esc(t.name)}</strong> — Match Slips — Rodada ${t.currentRound}
-  &nbsp;·&nbsp; Recorte e distribua uma slip por mesa
+  <strong>${esc(t.name).toUpperCase()}</strong> &nbsp;—&nbsp;
+  MATCH SLIPS &nbsp;—&nbsp; ROUND ${t.currentRound} / ${t.settings.totalRounds}
+  &nbsp;&nbsp;·&nbsp;&nbsp; Recorte e entregue um slip por mesa
 </div>
-<div class="slips-grid">${slips}</div>`;
+<div class="slips-grid">${pairs.map(slip).join('')}</div>`;
 
   openPrintWindow({ _body: body, _css: css }, `Match Slips R${t.currentRound} — ${t.name}`);
 }
