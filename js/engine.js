@@ -85,9 +85,17 @@ function oowp(pid, rounds, players) {
 function getStandings(players, rounds, divFilter) {
   const list = players
     .filter(p => !p.dq && (!divFilter || p.division === divFilter))
-    .map(p => ({ ...p, ...calcStats(p.id, rounds),
-      owp:  owp(p.id, rounds, players),
-      oowp: oowp(p.id, rounds, players) }));
+    .map(p => {
+      // Ensure name is always populated — fall back to global player DB by gid
+      const resolvedName = p.name || G.players?.find(x=>x.id===p.gid)?.name || '?';
+      return {
+        ...p,
+        name: resolvedName,
+        ...calcStats(p.id, rounds),
+        owp:  owp(p.id, rounds, players),
+        oowp: oowp(p.id, rounds, players),
+      };
+    });
 
   list.sort((a,b) => {
     if (b.mp  !== a.mp)  return b.mp  - a.mp;   // 1. Match points
@@ -755,7 +763,8 @@ function parseTDF(xmlStr) {
       norm(p.name) === norm(tp.name)
     );
     if (gp) {
-      tp.gid = gp.id;
+      tp.gid  = gp.id;
+      tp.name = gp.name || tp.name; // prefer global DB name (has proper casing/accents)
       // Sync playerId back to global DB if it was missing
       if (tp.playerId && !gp.playerId) {
         gp.playerId  = tp.playerId;
@@ -1092,7 +1101,8 @@ function importTDF() {
         );
 
         if (exists) {
-          tp.gid = exists.id;
+          tp.gid  = exists.id;
+          tp.name = exists.name || tp.name;
           // Sync playerId if missing in DB
           if (tp.playerId && !exists.playerId) {
             exists.playerId  = tp.playerId;

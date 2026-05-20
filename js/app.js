@@ -171,7 +171,7 @@ function stbadge(t) {
   const l={registration:'Registro',rounds:'Rodadas',topcut:'Top Cut',finished:'Finalizado'};
   return `<span class="badge ${m[t.status]||'bn'}">${l[t.status]||t.status}</span>`;
 }
-function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); return p ? p.name : '?'; }
+function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || '?'; }
 function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); return p ? p.division : 'Masters'; }
 // bd aceita: ano "2005", ISO "2005-02-27", TDF "02/27/2005"
 function extractYear(bd) {
@@ -1499,7 +1499,7 @@ function standTable(stand, t) {
       <td class="mono" style="font-weight:${i<3&&!p.dropped?700:400}">
         ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
       </td>
-      <td><div class="fx gap6">${esc(p.name)} ${dbadge(p.division)}</div>
+      <td><div class="fx gap6">${esc(p.name || (G.players.find(x=>x.id===p.gid)?.name) || '?')} ${dbadge(p.division)}</div>
         ${p.dropped?'<div class="muted small">Dropped</div>':''}
       </td>
       <td class="mono" style="font-weight:700;font-size:15px">${p.mp}</td>
