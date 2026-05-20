@@ -1855,8 +1855,10 @@ function render() {
   </div>
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
-  // Init charts after DOM is ready (innerHTML scripts don't execute)
-  if (G.view === 'pdetail') setTimeout(initPlayerCharts, 0);
+  // Init charts: use rAF to wait for paint, then rAF again for layout stability
+  if (G.view === 'pdetail') {
+    requestAnimationFrame(() => requestAnimationFrame(initPlayerCharts));
+  }
 }
 
 function renderNotif() {
@@ -2375,10 +2377,12 @@ Object.assign(window, {
 
 
 function initPlayerCharts() {
-  if (typeof Chart === 'undefined' || !G._chartData) return;
-  if (!document.getElementById('pf-wr')) return;
+  if (typeof Chart === 'undefined') { console.warn('[Charts] Chart.js not loaded'); return; }
+  if (!G._chartData) { console.warn('[Charts] No chart data'); return; }
+  const wrEl = document.getElementById('pf-wr');
+  if (!wrEl) { console.warn('[Charts] Canvas pf-wr not found in DOM'); return; }
 
-  const { labels, wr, w, l, t, pos, tw, tl, tt } = G._chartData;
+  const { labels, wr, w, l, t: ties, pos, tw, tl, tt } = G._chartData;
   const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
   const grid   = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)';
   const tick   = isDark ? '#9ca3af' : '#6b7280';
@@ -2415,7 +2419,7 @@ function initPlayerCharts() {
     type: 'bar',
     data: { labels, datasets: [
       { label:'V', data:w, backgroundColor:'#639922', stack:'s' },
-      { label:'E', data:t, backgroundColor:'#BA7517', stack:'s' },
+      { label:'E', data:ties, backgroundColor:'#BA7517', stack:'s' },
       { label:'D', data:l, backgroundColor:'#E24B4A', stack:'s' },
     ]},
     options: { ...base, scales: {
