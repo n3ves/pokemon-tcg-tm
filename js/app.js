@@ -171,7 +171,7 @@ function stbadge(t) {
   const l={registration:'Registro',rounds:'Rodadas',topcut:'Top Cut',finished:'Finalizado'};
   return `<span class="badge ${m[t.status]||'bn'}">${l[t.status]||t.status}</span>`;
 }
-function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || '?'; }
+function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
 function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); return p ? p.division : 'Masters'; }
 // bd aceita: ano "2005", ISO "2005-02-27", TDF "02/27/2005"
 function extractYear(bd) {

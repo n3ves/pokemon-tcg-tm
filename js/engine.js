@@ -87,7 +87,10 @@ function getStandings(players, rounds, divFilter) {
     .filter(p => !p.dq && (!divFilter || p.division === divFilter))
     .map(p => {
       // Ensure name is always populated — fall back to global player DB by gid
-      const resolvedName = p.name || G.players?.find(x=>x.id===p.gid)?.name || '?';
+      const resolvedName = p.name
+        || G.players?.find(x=>x.id===p.gid)?.name
+        || (p.playerId && G.players?.find(x=>x.playerId===p.playerId)?.name)
+        || '?';
       return {
         ...p,
         name: resolvedName,
@@ -772,6 +775,26 @@ function parseTDF(xmlStr) {
       }
       tp.division = gp.division; // pod category is applied below
     }
+  }
+
+  // ── Auto-create global players for unlinked TDF players ──
+  for (const tp of uidMap.values()) {
+    if (tp.gid) continue; // already linked
+    // Create global player now so name is always available
+    const newGP = {
+      id:        uid(),
+      createdAt: Date.now(),
+      name:      tp.name,
+      nickname:  '',
+      playerId:  tp.playerId || '',
+      birthDate: tp.birthDate || '',
+      division:  tp.division,
+      city:      '', state:    '', contact: '', notes: 'Importado via TDF',
+    };
+    if (typeof G !== 'undefined' && G.players) {
+      G.players.push(newGP);
+    }
+    tp.gid = newGP.id;
   }
 
   // ── Override division from <pods> category ───────────────
