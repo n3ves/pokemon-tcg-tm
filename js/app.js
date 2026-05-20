@@ -287,6 +287,119 @@ list.map(p=>`<div class="plr" onclick="nav('pdetail',{pid:'${p.id}'})">
 <p class="muted small mt8 tc">${list.length} jogador${list.length!==1?'es':''}</p>`;
 }
 
+
+/* ════════════════════════════════════════════════════════
+   SVG CHARTS — pure SVG, no external library
+════════════════════════════════════════════════════════ */
+function svgLineChart(data, opts={}) {
+  const W=opts.w||400, H=opts.h||150;
+  const pad={t:10,r:16,b:32,l:40};
+  const iW=W-pad.l-pad.r, iH=H-pad.t-pad.b;
+  if(!data.length) return `<svg width="${W}" height="${H}"></svg>`;
+
+  const minV = opts.min!==undefined ? opts.min : Math.min(...data);
+  const maxV = opts.max!==undefined ? opts.max : Math.max(...data);
+  const range = maxV-minV || 1;
+  const scaleY = v => pad.t + iH - ((v-minV)/range)*iH;
+  const scaleX = i => pad.l + (i/(data.length-1||1))*iW;
+
+  // Y axis ticks
+  const yTicks = [];
+  const step = opts.yStep || Math.ceil(range/4);
+  for(let v=minV; v<=maxV+0.01; v+=step) yTicks.push(Math.round(v));
+
+  // X axis labels (max 6)
+  const xLabels = opts.labels||[];
+  const xStep = Math.max(1, Math.ceil(xLabels.length/6));
+
+  // Line path
+  const pts = data.map((v,i)=>`${scaleX(i).toFixed(1)},${scaleY(v).toFixed(1)}`);
+  const linePath = 'M'+pts.join('L');
+  // Fill area
+  const fillPath = linePath +
+    `L${scaleX(data.length-1).toFixed(1)},${(pad.t+iH).toFixed(1)}` +
+    `L${scaleX(0).toFixed(1)},${(pad.t+iH).toFixed(1)}Z`;
+
+  // Point colors
+  const ptColors = data.map((_,i) => opts.pointColor ? opts.pointColor(data[i],i) : (opts.color||'#378ADD'));
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible">
+    <defs><clipPath id="cp${Math.random().toString(36).slice(2,6)}"><rect x="${pad.l}" y="${pad.t}" width="${iW}" height="${iH}"/></clipPath></defs>
+    ${yTicks.map(v=>`
+      <line x1="${pad.l}" x2="${pad.l+iW}" y1="${scaleY(v).toFixed(1)}" y2="${scaleY(v).toFixed(1)}" stroke="currentColor" stroke-opacity=".08" stroke-width="1"/>
+      <text x="${pad.l-6}" y="${scaleY(v).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="currentColor" opacity=".5">${opts.formatY?opts.formatY(v):v}</text>`).join('')}
+    ${xLabels.filter((_,i)=>i%xStep===0).map((lbl,_,arr,idx)=>{
+      const origIdx = xLabels.indexOf(lbl);
+      return `<text x="${scaleX(origIdx).toFixed(1)}" y="${H-6}" text-anchor="middle" font-size="9" fill="currentColor" opacity=".5">${lbl.length>8?lbl.slice(0,8)+'…':lbl}</text>`;
+    }).join('')}
+    <path d="${fillPath}" fill="${opts.color||'#378ADD'}" opacity=".12"/>
+    <path d="${linePath}" fill="none" stroke="${opts.color||'#378ADD'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${data.map((v,i)=>`<circle cx="${scaleX(i).toFixed(1)}" cy="${scaleY(v).toFixed(1)}" r="3.5" fill="${ptColors[i]}" stroke="${opts.bg||'var(--bg)'}" stroke-width="1.5"/>`).join('')}
+  </svg>`;
+}
+
+function svgXLabels(labels, data, W=400, H=150, pad={t:10,r:16,b:32,l:40}) {
+  // helper used inside svgLineChart for x labels - handled inline above
+}
+
+function svgBarChart(datasets, labels, opts={}) {
+  const W=opts.w||400, H=opts.h||150;
+  const pad={t:10,r:16,b:32,l:32};
+  const iW=W-pad.l-pad.r, iH=H-pad.t-pad.b;
+  const n=labels.length;
+  if(!n) return `<svg width="${W}" height="${H}"></svg>`;
+
+  // Stack values
+  const totals = labels.map((_,i) => datasets.reduce((s,d)=>s+(d.data[i]||0),0));
+  const maxV = Math.max(...totals,1);
+  const barW = Math.max(8, (iW/n)*0.6);
+  const gap  = iW/n;
+  const xStep = Math.max(1, Math.ceil(n/6));
+
+  let bars = '';
+  labels.forEach((lbl,i) => {
+    const x = pad.l + i*gap + (gap-barW)/2;
+    let y = pad.t+iH;
+    datasets.forEach(ds => {
+      const val = ds.data[i]||0;
+      const bH  = (val/maxV)*iH;
+      y -= bH;
+      if(bH>0) bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bH.toFixed(1)}" fill="${ds.color}" rx="1"/>`;
+    });
+    if(i%xStep===0)
+      bars += `<text x="${(x+barW/2).toFixed(1)}" y="${H-6}" text-anchor="middle" font-size="9" fill="currentColor" opacity=".5">${lbl.length>8?lbl.slice(0,8)+'…':lbl}</text>`;
+  });
+
+  const yTicks = [0, Math.round(maxV/2), maxV];
+  const yLines = yTicks.map(v=>{
+    const y = pad.t+iH-(v/maxV)*iH;
+    return `<line x1="${pad.l}" x2="${pad.l+iW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity=".08" stroke-width="1"/>
+    <text x="${pad.l-4}" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="currentColor" opacity=".5">${v}</text>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
+    ${yLines}${bars}
+  </svg>`;
+}
+
+function svgDonut(values, colors, size=140) {
+  const total = values.reduce((a,b)=>a+b,0);
+  if(!total) return `<svg width="${size}" height="${size}"></svg>`;
+  const cx=size/2, cy=size/2, R=size/2-10, r=R*0.58;
+  let angle=-Math.PI/2, paths='';
+  values.forEach((v,i)=>{
+    const sweep = (v/total)*2*Math.PI;
+    const x1=cx+R*Math.cos(angle), y1=cy+R*Math.sin(angle);
+    angle+=sweep;
+    const x2=cx+R*Math.cos(angle), y2=cy+R*Math.sin(angle);
+    const x3=cx+r*Math.cos(angle), y3=cy+r*Math.sin(angle);
+    const x4=cx+r*Math.cos(angle-sweep), y4=cy+r*Math.sin(angle-sweep);
+    const large=sweep>Math.PI?1:0;
+    if(sweep>0.01)
+      paths+=`<path d="M${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${x3.toFixed(2)},${y3.toFixed(2)} A${r},${r} 0 ${large},0 ${x4.toFixed(2)},${y4.toFixed(2)}Z" fill="${colors[i]}"/>`;
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+}
 function renderPDetail() {
   const gp = G.players.find(p => p.id === G.pid);
   if (!gp) return `<div class="empty">Jogador não encontrado</div>`;
@@ -371,7 +484,7 @@ ${history.length === 0 ? `
     <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:#378ADD;display:inline-block"></span>Win rate %</span>
     </div>
-    <div id="pf-wr-wrap" style="position:relative;height:160px;width:100%"></div>
+    ${svgLineChart(chartWR,{w:440,h:150,min:0,max:100,color:"#378ADD",labels:chartLabels,formatY:v=>v+"%",pointColor:(v)=>v>=50?"#639922":"#E24B4A"})}
   </div>
   <div class="card">
     <div class="lbl mb10">Resultados por torneio</div>
@@ -380,19 +493,19 @@ ${history.length === 0 ? `
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>D</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>E</span>
     </div>
-    <div id="pf-wlt-wrap" style="position:relative;height:160px;width:100%"></div>
+    ${svgBarChart([{data:chartW,color:"#639922"},{data:chartT,color:"#BA7517"},{data:chartL,color:"#E24B4A"}],chartLabels,{w:440,h:150})}
   </div>
 </div>
 
 <div class="g2 gap16 mb16">
   <div class="card">
     <div class="lbl mb10">Posição final</div>
-    <div id="pf-pos-wrap" style="position:relative;height:160px;width:100%"></div>
+    ${svgLineChart(chartPos.map(v=>-v),{w:440,h:150,min:-Math.max(...chartPos,4),max:-1,color:"#7F77DD",labels:chartLabels,formatY:v=>"#"+(-v),pointColor:(_,i)=>chartPos[i]===1?"#639922":"#7F77DD"})}
   </div>
   <div class="card">
     <div class="lbl mb10">Distribuição total</div>
     <div style="display:flex;align-items:center;gap:16px">
-      <div id="pf-donut-wrap" style="position:relative;height:140px;width:140px;flex-shrink:0"></div>
+      <div style="flex-shrink:0">${svgDonut([tw,tl,tt],["#639922","#E24B4A","#BA7517"],140)}</div>
       <div style="flex:1">
         ${[['#639922','Vitórias',tw],['#E24B4A','Derrotas',tl],['#BA7517','Empates',tt]].map(([c,l,v])=>`
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1855,10 +1968,7 @@ function render() {
   </div>
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
-  // Init charts after layout is stable
-  if (G.view === 'pdetail') {
-    setTimeout(initPlayerCharts, 100);
-  }
+
 }
 
 function renderNotif() {
@@ -2376,85 +2486,6 @@ Object.assign(window, {
 // ── Init ─────────────────────────────────────────────────────
 
 
-function makeCanvas(wrapId) {
-  const wrap = document.getElementById(wrapId);
-  if (!wrap) return null;
-  // Destroy existing chart if any
-  const old = wrap.querySelector('canvas');
-  if (old) { const ch = Chart.getChart(old); if (ch) ch.destroy(); old.remove(); }
-  const canvas = document.createElement('canvas');
-  canvas.style.display = 'block';
-  wrap.appendChild(canvas);
-  return canvas;
-}
-
-function initPlayerCharts() {
-  if (typeof Chart === 'undefined') return;
-  if (!G._chartData) return;
-  if (!document.getElementById('pf-wr-wrap')) return;
-
-  const { labels, wr, w, l, t: ties, pos, tw, tl, tt } = G._chartData;
-  const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
-  const grid   = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)';
-  const tick   = isDark ? '#9ca3af' : '#6b7280';
-  const base   = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { grid:{color:grid}, ticks:{color:tick,font:{size:10},maxRotation:35,autoSkip:true,maxTicksLimit:8} },
-      y: { grid:{color:grid}, ticks:{color:tick,font:{size:10}} }
-    }
-  };
-
-  const cWR = makeCanvas('pf-wr-wrap');
-  if (cWR) new Chart(cWR, {
-    type: 'line',
-    data: { labels, datasets: [{ data: wr, borderColor:'#378ADD',
-      backgroundColor:'rgba(55,138,221,.12)',
-      pointBackgroundColor: wr.map(v=>v>=50?'#639922':'#E24B4A'),
-      pointRadius:4, tension:.35, fill:true }] },
-    options: { ...base, scales: { ...base.scales,
-      y: { ...base.scales.y, min:0, max:100,
-           ticks: { ...base.scales.y.ticks, callback: v=>v+'%' } } } }
-  });
-
-  const cWLT = makeCanvas('pf-wlt-wrap');
-  if (cWLT) new Chart(cWLT, {
-    type: 'bar',
-    data: { labels, datasets: [
-      { label:'V', data:w,    backgroundColor:'#639922', stack:'s' },
-      { label:'E', data:ties, backgroundColor:'#BA7517', stack:'s' },
-      { label:'D', data:l,    backgroundColor:'#E24B4A', stack:'s' },
-    ]},
-    options: { ...base, scales: {
-      x: { ...base.scales.x, stacked:true },
-      y: { ...base.scales.y, stacked:true, ticks:{...base.scales.y.ticks,stepSize:1} } } }
-  });
-
-  const cPos = makeCanvas('pf-pos-wrap');
-  if (cPos) new Chart(cPos, {
-    type: 'line',
-    data: { labels, datasets: [{ data: pos, borderColor:'#7F77DD',
-      backgroundColor:'rgba(127,119,221,.1)',
-      pointBackgroundColor: pos.map(v=>v===1?'#639922':'#7F77DD'),
-      pointRadius:4, tension:.3, fill:true }] },
-    options: { ...base, scales: { ...base.scales,
-      y: { ...base.scales.y, reverse:true, min:1,
-           ticks: { ...base.scales.y.ticks, stepSize:1, callback: v=>'#'+v } } } }
-  });
-
-  const cDon = makeCanvas('pf-donut-wrap');
-  if (cDon) new Chart(cDon, {
-    type: 'doughnut',
-    data: { labels:['V','D','E'],
-      datasets: [{ data:[tw,tl,tt],
-        backgroundColor:['#639922','#E24B4A','#BA7517'], borderWidth:0, hoverOffset:4 }] },
-    options: { responsive:true, maintainAspectRatio:false, animation:false,
-      plugins:{legend:{display:false}}, cutout:'68%' }
-  });
-}
 
 /* ════════════════════════════════════════════════════════
    PARTIAL LIST UPDATERS — avoid losing focus on search
