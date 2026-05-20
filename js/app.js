@@ -1797,22 +1797,53 @@ function printMatchSlips(tid) {
     .filter(p=>!p.isBye)
     .sort((a,b)=>(a.table||0)-(b.table||0));
 
+  // CSS — narrow receipt-style, 3 per row on A4
   const css = `
-    .slip { border: 1px solid #000; padding: 10px 12px; margin-bottom: 0; page-break-inside: avoid; }
-    .slip-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom:6px; border-bottom:1px solid #ccc; }
-    .slip-title { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; color: #555; }
-    .slip-round { font-size: 13px; font-weight: bold; }
-    .slip-player { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eee; }
-    .slip-player:last-child { border-bottom: none; }
-    .slip-name { flex: 1; font-size: 13px; font-weight: bold; }
-    .slip-record { font-size: 11px; color: #444; white-space: nowrap; }
-    .slip-result { display: flex; gap: 6px; align-items: center; }
-    .slip-box { width: 48px; height: 24px; border: 1px solid #999; border-radius: 3px; display: inline-block; }
-    .slip-footer { margin-top: 8px; font-size: 10px; color: #888; display: flex; justify-content: space-between; }
-    .slip-init { display: flex; gap: 4px; align-items: center; font-size: 10px; }
-    .slip-init-box { width: 40px; height: 18px; border-bottom: 1px solid #000; display: inline-block; margin-left: 4px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-    .cut-guide { border-top: 1px dashed #bbb; margin: 0; }
+    body { margin: 8mm; }
+    .page-title { text-align:center; font-size:11px; margin-bottom:8px; color:#444; }
+    .slips-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:4mm; }
+    .slip {
+      border: 1px solid #000;
+      font-family: Arial, sans-serif;
+      font-size: 10px;
+      page-break-inside: avoid;
+      overflow: hidden;
+    }
+    /* TOP HALF — Player 1 side (normal orientation) */
+    .slip-top {
+      padding: 6px 8px;
+      border-bottom: 1px dashed #999;
+    }
+    .slip-event { font-size:8px; color:#555; }
+    .slip-round-row { display:flex; justify-content:space-between; font-size:9px; color:#444; margin-top:2px; }
+    .slip-table { font-size:13px; font-weight:bold; margin:4px 0 2px; }
+    .slip-name { font-size:12px; font-weight:bold; }
+    .slip-info { font-size:9px; color:#444; margin-top:1px; }
+    .slip-winner-label { font-size:9px; font-weight:bold; text-align:center; margin:6px 0 2px; }
+    .slip-init-row { display:flex; align-items:center; gap:4px; font-size:8px; color:#555; margin-top:6px; }
+    .slip-init-line { flex:1; border-bottom:1px solid #000; height:12px; }
+    /* MIDDLE — game checkboxes */
+    .slip-mid {
+      padding: 6px 8px;
+      background: #f9f9f9;
+      border-top: 1px dashed #999;
+      border-bottom: 1px dashed #999;
+    }
+    .slip-instruction { font-size:7.5px; color:#555; text-align:center; margin-bottom:5px; line-height:1.3; }
+    .games-row { display:flex; justify-content:space-around; align-items:center; }
+    .game-box { text-align:center; }
+    .game-box-label { font-size:7px; color:#666; margin-bottom:2px; }
+    .game-check { width:16px; height:16px; border:1px solid #000; border-radius:2px; margin:0 auto; }
+    .tie-circle { width:28px; height:28px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:bold; margin:0 auto; }
+    /* BOTTOM HALF — Player 2 side (rotated 180°) */
+    .slip-bottom {
+      padding: 6px 8px;
+      transform: rotate(180deg);
+    }
+    @media print {
+      .no-print { display:none !important; }
+      @page { size: A4; margin: 8mm; }
+    }
   `;
 
   const slips = pairs.map(p => {
@@ -1820,46 +1851,65 @@ function printMatchSlips(tid) {
     const p2 = t.players.find(x=>x.id===p.p2);
     const s1 = calcStats(p.p1, t.rounds.slice(0,-1));
     const s2 = calcStats(p.p2, t.rounds.slice(0,-1));
-    return `
-<div class="slip">
-  <div class="slip-header">
-    <div>
-      <div class="slip-title">${esc(t.name)}</div>
-      <div style="font-size:10px;color:#666">${t.date||''}</div>
-    </div>
-    <div class="slip-round">Mesa ${p.table} &nbsp;·&nbsp; Rodada ${t.currentRound}/${t.settings.totalRounds}</div>
-  </div>
-  <div class="slip-player">
-    <div style="font-size:10px;color:#888;width:16px">P1</div>
-    <div class="slip-name">${esc(p1?.name||'?')} <span style="font-size:10px;font-weight:normal;color:#666">(${p1?.division[0]||'?'})</span></div>
-    <div class="slip-record">${s1.w}/${s1.l}/${s1.t} (${s1.mp}pts)</div>
-    <div class="slip-result">
-      Resultado: <span class="slip-box"></span>
-    </div>
-  </div>
-  <div class="slip-player">
-    <div style="font-size:10px;color:#888;width:16px">P2</div>
-    <div class="slip-name">${esc(p2?.name||'?')} <span style="font-size:10px;font-weight:normal;color:#666">(${p2?.division[0]||'?'})</span></div>
-    <div class="slip-record">${s2.w}/${s2.l}/${s2.t} (${s2.mp}pts)</div>
-    <div class="slip-result">
-      Resultado: <span class="slip-box"></span>
-    </div>
-  </div>
-  <div class="slip-footer">
-    <div class="slip-init">Ass. P1:<span class="slip-init-box"></span></div>
-    <div style="font-size:9px;color:#aaa">Vencedor entrega o slip</div>
-    <div class="slip-init">Ass. P2:<span class="slip-init-box"></span></div>
-  </div>
-</div>`;
-  }).join('<div class="cut-guide"></div>');
+    const eventLine = esc(t.name);
+    const roundLine = `Rodada ${t.currentRound} / ${t.settings.totalRounds}`;
 
-  // 2-column grid for printing
+    return `<div class="slip">
+
+      <!-- P1 side (top, normal) -->
+      <div class="slip-top">
+        <div class="slip-event">${eventLine}</div>
+        <div class="slip-round-row"><span>${roundLine}</span><span>${t.date||''}</span></div>
+        <div class="slip-table">MESA #${p.table}</div>
+        <div class="slip-name">${esc(p1?.name||'?')} [${p1?.division[0]||'?'}]</div>
+        <div class="slip-info">${p1?.playerId||''} &nbsp;·&nbsp; ${s1.w}/${s1.l}/${s1.t} (${s1.mp})</div>
+        <div class="slip-winner-label">WINNER &nbsp; Player 1</div>
+        <div class="slip-init-row">Assinar: <span class="slip-init-line"></span></div>
+      </div>
+
+      <!-- Middle: game results -->
+      <div class="slip-mid">
+        <div class="slip-instruction">Marque quem vence cada game. Circule WINNER ou TIE para o match. Ambos assinam ao final.</div>
+        <div class="games-row">
+          <div class="game-box">
+            <div class="game-box-label">game 1</div>
+            <div class="game-check"></div>
+          </div>
+          <div class="game-box">
+            <div class="game-box-label">game 2</div>
+            <div class="game-check"></div>
+          </div>
+          <div class="game-box">
+            <div class="game-box-label">game 3</div>
+            <div class="game-check"></div>
+          </div>
+          <div class="game-box">
+            <div class="game-box-label">TIE</div>
+            <div class="tie-circle">TIE</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P2 side (bottom, rotated 180°) -->
+      <div class="slip-bottom">
+        <div class="slip-event">${eventLine}</div>
+        <div class="slip-round-row"><span>${roundLine}</span><span>${t.date||''}</span></div>
+        <div class="slip-table">MESA #${p.table}</div>
+        <div class="slip-name">${esc(p2?.name||'?')} [${p2?.division[0]||'?'}]</div>
+        <div class="slip-info">${p2?.playerId||''} &nbsp;·&nbsp; ${s2.w}/${s2.l}/${s2.t} (${s2.mp})</div>
+        <div class="slip-winner-label">WINNER &nbsp; Player 2</div>
+        <div class="slip-init-row">Assinar: <span class="slip-init-line"></span></div>
+      </div>
+
+    </div>`;
+  }).join('');
+
   const body = `
-<div style="text-align:center;margin-bottom:12px;font-size:14px;font-weight:bold">
-  ${esc(t.name)} — Match Slips — Rodada ${t.currentRound}
-  <div style="font-size:10px;font-weight:normal;color:#666;margin-top:2px">Recorte nas linhas tracejadas · Vencedor entrega o slip ao organizador</div>
+<div class="page-title">
+  <strong>${esc(t.name)}</strong> — Match Slips — Rodada ${t.currentRound}
+  &nbsp;·&nbsp; Recorte e distribua uma slip por mesa
 </div>
-<div class="grid">${slips}</div>`;
+<div class="slips-grid">${slips}</div>`;
 
   openPrintWindow({ _body: body, _css: css }, `Match Slips R${t.currentRound} — ${t.name}`);
 }
