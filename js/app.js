@@ -524,6 +524,7 @@ function renderTour() {
     { id:'history',  icon:'ti-history',      label:'Histórico' },
     ...(t.topBracket?.length ? [{ id:'topcut', icon:'ti-tournament', label:'Top Cut' }] : []),
     ...(t.status==='finished' ? [{ id:'finished', icon:'ti-trophy', label:'Resultado final' }] : []),
+    { id:'decklists',icon:'ti-cards',        label:'Decklists' },
     { id:'debug',    icon:'ti-bug',          label:'Debug' },
     { id:'export',   icon:'ti-download',     label:'Exportar' },
   ];
@@ -539,6 +540,7 @@ function renderTour() {
   else if (G.tab==='history')   body = renderHistory(t);
   else if (G.tab==='topcut')    body = renderTopCut(t);
   else if (G.tab==='finished')  body = renderFinished(t);
+  else if (G.tab==='decklists') body = renderDecklists(t);
   else if (G.tab==='debug')     body = renderDebug(t);
   else if (G.tab==='export')    body = renderExport(t);
 
@@ -954,6 +956,231 @@ ${standTable(stand, t)}`;
 }
 
 /* ── DEBUG ── */
+/* ── DECKLISTS ── */
+function getAllArchetypes() {
+  // Coleta todos os arquétipos já usados em todos os torneios
+  const set = new Set();
+  G.tours.forEach(t => t.players.forEach(p => { if(p.deckArchetype) set.add(p.deckArchetype); }));
+  return [...set].sort((a,b) => a.localeCompare(b, 'pt'));
+}
+
+function renderDecklists(t) {
+  const registered = t.players.filter(p => p.deckArchetype);
+  const pending    = t.players.filter(p => !p.deckArchetype);
+  const allArchs   = getAllArchetypes();
+
+  // Contagem de arquétipos neste torneio
+  const archCount = {};
+  registered.forEach(p => { archCount[p.deckArchetype] = (archCount[p.deckArchetype]||0)+1; });
+  const archRanked = Object.entries(archCount).sort((a,b)=>b[1]-a[1]);
+  const maxCount   = archRanked[0]?.[1] || 1;
+
+  const archColors = [
+    '#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517',
+    '#D4537E','#888780','#639922','#993C1D','#534AB7',
+  ];
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h2 class="mb4">Decklists</h2>
+    <div class="fx gap6">
+      <span class="badge bs"><i class="ti ti-check"></i> ${registered.length} registradas</span>
+      ${pending.length>0?`<span class="badge bn">${pending.length} pendentes</span>`:''}
+    </div>
+  </div>
+  <button class="btn btn-p" onclick="openDeckModal(null)">
+    <i class="ti ti-plus"></i> Registrar
+  </button>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start">
+
+  <!-- Lista de jogadores -->
+  <div class="card p0">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
+      <h3 style="flex:1">Jogadores</h3>
+      <input placeholder="Buscar..." style="width:160px;font-size:12px;padding:5px 10px"
+        oninput="filterDeckList(this.value)">
+    </div>
+    <div id="deck-player-list">
+      ${renderDeckPlayerList(t, '')}
+    </div>
+  </div>
+
+  <!-- Sidebar: arquétipos + form rápido -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+
+    ${archRanked.length > 0 ? `
+    <div class="card">
+      <div class="lbl mb10">Meta do torneio</div>
+      ${archRanked.map(([name, count], i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--bd)">
+          <span style="width:10px;height:10px;border-radius:2px;background:${archColors[i%archColors.length]};flex-shrink:0"></span>
+          <span style="flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
+          <div style="width:60px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden">
+            <div style="width:${Math.round(count/maxCount*100)}%;height:100%;background:${archColors[i%archColors.length]}"></div>
+          </div>
+          <span class="muted" style="font-size:12px;min-width:16px;text-align:right">${count}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    <div class="card">
+      <div class="lbl mb10">Registro rápido</div>
+      <div class="f mb8">
+        <label>Jogador</label>
+        <select id="deck-quick-player">
+          <option value="">Selecionar...</option>
+          ${pending.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+          ${registered.map(p=>`<option value="${p.id}">${esc(p.name)} ✓</option>`).join('')}
+        </select>
+      </div>
+      <div class="f mb12">
+        <label>Arquétipo</label>
+        <input id="deck-quick-arch" list="arch-datalist" placeholder="Charizard ex, Gardevoir ex...">
+        <datalist id="arch-datalist">
+          ${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}
+        </datalist>
+      </div>
+      <button class="btn btn-p fw jc" onclick="saveDeckQuick()">
+        <i class="ti ti-check"></i> Salvar
+      </button>
+    </div>
+
+  </div>
+</div>`;
+}
+
+function renderDeckPlayerList(t, filter) {
+  const q = norm(filter || '');
+  const players = q
+    ? t.players.filter(p => norm(p.name).includes(q) || norm(p.deckArchetype||'').includes(q))
+    : t.players;
+
+  if (!players.length) return `<div class="empty"><p>Nenhum jogador encontrado</p></div>`;
+
+  const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
+  const archColorMap = {};
+  let ci = 0;
+  t.players.forEach(p => {
+    if(p.deckArchetype && !archColorMap[p.deckArchetype])
+      archColorMap[p.deckArchetype] = archColors[ci++ % archColors.length];
+  });
+
+  return players.map((p,i) => `
+    <div class="plr" style="padding:10px 16px">
+      <span class="muted mono" style="min-width:24px;font-size:11px">${t.players.indexOf(p)+1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${esc(p.name)}</div>
+        <div class="muted small">${p.division}</div>
+      </div>
+      ${p.deckArchetype ? `
+        <span style="background:${archColorMap[p.deckArchetype]||'#888'}22;color:${archColorMap[p.deckArchetype]||'#888'};
+          border:0.5px solid ${archColorMap[p.deckArchetype]||'#888'}44;
+          padding:3px 10px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap">
+          ${esc(p.deckArchetype)}
+        </span>
+        ${p.deckList ? `<i class="ti ti-file-text muted" title="Lista completa registrada" style="font-size:14px"></i>` : ''}
+        <button class="btn btn-xs" onclick="openDeckModal('${p.id}')"><i class="ti ti-edit"></i></button>
+      ` : `
+        <span class="muted small" style="font-style:italic">—</span>
+        <button class="btn btn-xs btn-p" onclick="openDeckModal('${p.id}')">
+          <i class="ti ti-plus"></i> Registrar
+        </button>
+      `}
+    </div>`).join('');
+}
+
+function filterDeckList(q) {
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('deck-player-list');
+  if (el) el.innerHTML = renderDeckPlayerList(t, q);
+}
+
+function saveDeckQuick() {
+  const pid  = document.getElementById('deck-quick-player')?.value;
+  const arch = document.getElementById('deck-quick-arch')?.value?.trim();
+  if (!pid)  return notify('Selecione um jogador','warn');
+  if (!arch) return notify('Informe o arquétipo','warn');
+  mtour(t => { t.players = t.players.map(p => p.id===pid ? {...p, deckArchetype:arch} : p); });
+  document.getElementById('deck-quick-arch').value = '';
+  document.getElementById('deck-quick-player').value = '';
+  notify('Decklist salva','ok');
+}
+
+function openDeckModal(pid) {
+  const t = ct(); if (!t) return;
+  const p = pid ? t.players.find(x=>x.id===pid) : null;
+  G.modal = { type:'deck', pid, playerName: p?.name||'', arch: p?.deckArchetype||'', list: p?.deckList||'' };
+  render();
+}
+
+function saveDeckModal() {
+  const pid  = G.modal?.pid;
+  const arch = document.getElementById('dm-arch')?.value?.trim()||'';
+  const list = document.getElementById('dm-list')?.value?.trim()||'';
+  const selPid = document.getElementById('dm-player')?.value || pid;
+  if (!selPid) return notify('Selecione um jogador','warn');
+  mtour(t => { t.players = t.players.map(p => p.id===selPid ? {...p, deckArchetype:arch||null, deckList:list||null} : p); });
+  closeM();
+  notify('Decklist salva','ok');
+}
+
+function renderDeckModal() {
+  const t = ct(); if (!t) return '';
+  const m = G.modal;
+  const allArchs = getAllArchetypes();
+  const p = m.pid ? t.players.find(x=>x.id===m.pid) : null;
+  return `
+<div class="mtitle"><i class="ti ti-cards"></i> ${p ? 'Editar decklist — '+esc(p.name) : 'Registrar decklist'}</div>
+${!m.pid ? `
+<div class="f mb12">
+  <label>Jogador</label>
+  <select id="dm-player">
+    <option value="">Selecionar...</option>
+    ${t.players.map(pl=>`<option value="${pl.id}" ${pl.id===m.pid?'selected':''}>${esc(pl.name)} · ${pl.division}</option>`).join('')}
+  </select>
+</div>` : `<input type="hidden" id="dm-player" value="${m.pid}">`}
+<div class="f mb12">
+  <label>Arquétipo</label>
+  <input id="dm-arch" list="dm-arch-list" value="${esc(m.arch)}"
+    placeholder="Charizard ex, Gardevoir ex...">
+  <datalist id="dm-arch-list">
+    ${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}
+  </datalist>
+  ${allArchs.length > 0 ? `
+  <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
+    ${allArchs.slice(0,8).map(a=>`
+      <button class="btn btn-xs" style="font-size:11px"
+        onclick="document.getElementById('dm-arch').value='${esc(a).replace(/'/g,"\'")}'">${esc(a)}</button>
+    `).join('')}
+  </div>` : ''}
+</div>
+<div class="f mb16">
+  <label>Lista completa <span class="muted small">(opcional)</span></label>
+  <textarea id="dm-list" style="height:140px;font-family:var(--mono);font-size:12px"
+    placeholder="4 Charizard ex (OBF 125)&#10;2 Charmander (OBF 26)&#10;...">${esc(m.list)}</textarea>
+  <span class="muted small mt4">Formato livre — um card por linha</span>
+</div>
+${m.pid && (m.arch||m.list) ? `
+<div class="mb12">
+  <button class="btn btn-xs btn-d" onclick="clearDeck('${m.pid}')">
+    <i class="ti ti-trash"></i> Remover decklist
+  </button>
+</div>` : ''}
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveDeckModal()"><i class="ti ti-check"></i> Salvar</button>
+</div>`;
+}
+
+function clearDeck(pid) {
+  if (!confirm('Remover a decklist deste jogador?')) return;
+  mtour(t => { t.players = t.players.map(p => p.id===pid ? {...p, deckArchetype:null, deckList:null} : p); });
+  closeM();
+  notify('Decklist removida');
+}
+
 function renderDebug(t) {
   const log = G.lastLog || [];
   const rnd = t.rounds[t.currentRound-1];
@@ -1213,6 +1440,8 @@ function renderModal() {
   <button class="btn btn-p" onclick="saveEditTour()"><i class="ti ti-check"></i> Salvar</button>
 </div>`;
   }
+
+  if (m.type === 'deck') { body = renderDeckModal(); }
 
   if (m.type === 'judge') {
     const t = ct(), rnd = t?.rounds[t.currentRound-1];
@@ -1811,6 +2040,7 @@ Object.assign(window, {
   openEditTourModal, saveEditTour,
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
+  openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
 });
 
 // ── Init ─────────────────────────────────────────────────────
