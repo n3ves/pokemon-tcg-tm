@@ -974,21 +974,21 @@ function renderModal() {
 
   if (m.type === 'edit-tour') {
     const t = ct();
-    body = \`
+    body = `
 <div class="mtitle"><i class="ti ti-edit"></i> Editar informações do torneio</div>
-<div class="f"><label>Nome *</label><input id="et-name" value="\${esc(t?.name||'')}"></div>
+<div class="f"><label>Nome *</label><input id="et-name" value="${esc(t?.name||'')}"></div>
 <div class="g2">
-  <div class="f"><label>Cidade</label><input id="et-city" value="\${esc(t?.city||'')}"></div>
-  <div class="f"><label>Estado</label><input id="et-state" value="\${esc(t?.state||'')}"></div>
+  <div class="f"><label>Cidade</label><input id="et-city" value="${esc(t?.city||'')}"></div>
+  <div class="f"><label>Estado</label><input id="et-state" value="${esc(t?.state||'')}"></div>
 </div>
 <div class="g2">
-  <div class="f"><label>Data</label><input type="date" id="et-date" value="\${t?.date||''}"></div>
-  <div class="f"><label>ID Sancionada</label><input id="et-sanction" placeholder="##-##-######" value="\${esc(t?.sanctionedId||'')}" style="font-family:var(--mono)"></div>
+  <div class="f"><label>Data</label><input type="date" id="et-date" value="${t?.date||''}"></div>
+  <div class="f"><label>ID Sancionada</label><input id="et-sanction" placeholder="##-##-######" value="${esc(t?.sanctionedId||'')}" style="font-family:var(--mono)"></div>
 </div>
 <div class="fx gap6" style="justify-content:flex-end;margin-top:4px">
   <button class="btn" onclick="closeM()">Cancelar</button>
   <button class="btn btn-p" onclick="saveEditTour()"><i class="ti ti-check"></i> Salvar</button>
-</div>\`;
+</div>`;
   }
 
   if (m.type === 'judge') {
