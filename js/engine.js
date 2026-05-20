@@ -189,10 +189,14 @@ function generateSwiss(tournament) {
       divPools['Masters'] = [];
     }
 
+    // Detecta se houve merge para o log
+    const merged = divPools['Masters'].some(p => p.division !== 'Masters') ||
+                   divPools['Seniors'].some(p => p.division !== 'Seniors');
     for (const div of DIVS) {
       if (!divPools[div].length) continue;
-      const label = mergePool.length && div === 'Masters'
-        ? `MASTERS + Age Modified (${divPools[div].length} jogadores)`
+      const mixed = divPools[div].some(p => p.division !== div);
+      const label = mixed
+        ? `${div.toUpperCase()} + Age Combined (${divPools[div].length} jogadores)`
         : `${div.toUpperCase()} (${divPools[div].length} jogadores)`;
       log.push(`\n── ${label} ──`);
       const { pairs, divLog } = pairGroup(divPools[div], rounds, oppMap, rng, roundNum, log);
@@ -456,10 +460,14 @@ function generateSwiss(tournament) {
       divPools['Masters'] = [];
     }
 
+    // Detecta se houve merge para o log
+    const merged = divPools['Masters'].some(p => p.division !== 'Masters') ||
+                   divPools['Seniors'].some(p => p.division !== 'Seniors');
     for (const div of DIVS) {
       if (!divPools[div].length) continue;
-      const label = mergePool.length && div === 'Masters'
-        ? `MASTERS + Age Modified (${divPools[div].length} jogadores)`
+      const mixed = divPools[div].some(p => p.division !== div);
+      const label = mixed
+        ? `${div.toUpperCase()} + Age Combined (${divPools[div].length} jogadores)`
         : `${div.toUpperCase()} (${divPools[div].length} jogadores)`;
       log.push(`\n── ${label} ──`);
       const { pairs, divLog } = pairGroup(divPools[div], rounds, oppMap, rng, roundNum, log);

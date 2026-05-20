@@ -391,10 +391,26 @@ function renderCreateTour() {
 }
 
 function setCTMode(mode) {
+  // Salva tudo que foi preenchido antes de re-renderizar
   G._ctd = G._ctd || {};
+  G._ctd.name        = document.getElementById('ct-name')?.value || G._ctd.name || '';
+  G._ctd.city        = document.getElementById('ct-city')?.value || G._ctd.city || '';
+  G._ctd.state       = document.getElementById('ct-state')?.value || G._ctd.state || '';
+  G._ctd.date        = document.getElementById('ct-date')?.value || G._ctd.date || '';
+  G._ctd.sanctionedId= document.getElementById('ct-sanction')?.value || G._ctd.sanctionedId || '';
+  G._ctd.totalRounds = Number(document.getElementById('ct-rounds')?.value) || G._ctd.totalRounds || 4;
+  G._ctd.timerMinutes= Number(document.getElementById('ct-timer')?.value)  || G._ctd.timerMinutes || 50;
+  G._ctd.seed        = document.getElementById('ct-seed')?.value || G._ctd.seed || '';
+  G._ctd.separateDivisions = document.getElementById('ct-sepdiv')?.checked ?? G._ctd.separateDivisions ?? true;
+  G._ctd.standingsByDiv    = document.getElementById('ct-divst')?.checked  ?? G._ctd.standingsByDiv    ?? true;
+  G._ctd.debugMode         = document.getElementById('ct-debug')?.checked  ?? false;
   G._ctd.mode = mode;
-  G._ctd.topCutSize = mode==='lc' ? 0 : 8;
-  G._ctd.totalRounds = 4;
+  // Top cut: só muda se o modo define um valor padrão claro
+  // 'custom' → preserva o que estava; outros têm default
+  if (mode === 'lc') G._ctd.topCutSize = 0;
+  else if (mode === 'cup') G._ctd.topCutSize = 8;
+  else if (mode === 'one') G._ctd.topCutSize = 8;
+  // 'custom': não altera — usuário escolhe manualmente
   render();
 }
 
