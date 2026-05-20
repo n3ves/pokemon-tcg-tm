@@ -371,7 +371,7 @@ ${history.length === 0 ? `
     <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:#378ADD;display:inline-block"></span>Win rate %</span>
     </div>
-    <div style="position:relative;height:160px"><canvas id="pf-wr" width="400" height="160" role="img" aria-label="Win rate por torneio"></canvas></div>
+    <div id="pf-wr-wrap" style="position:relative;height:160px;width:100%"></div>
   </div>
   <div class="card">
     <div class="lbl mb10">Resultados por torneio</div>
@@ -380,19 +380,19 @@ ${history.length === 0 ? `
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>D</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>E</span>
     </div>
-    <div style="position:relative;height:160px"><canvas id="pf-wlt" width="400" height="160" role="img" aria-label="Vitórias, derrotas e empates por torneio"></canvas></div>
+    <div id="pf-wlt-wrap" style="position:relative;height:160px;width:100%"></div>
   </div>
 </div>
 
 <div class="g2 gap16 mb16">
   <div class="card">
     <div class="lbl mb10">Posição final</div>
-    <div style="position:relative;height:160px"><canvas id="pf-pos" width="400" height="160" role="img" aria-label="Posição final em cada torneio"></canvas></div>
+    <div id="pf-pos-wrap" style="position:relative;height:160px;width:100%"></div>
   </div>
   <div class="card">
     <div class="lbl mb10">Distribuição total</div>
     <div style="display:flex;align-items:center;gap:16px">
-      <div style="position:relative;height:140px;width:140px;flex-shrink:0"><canvas id="pf-donut" width="140" height="140" role="img" aria-label="Distribuição de vitórias derrotas e empates"></canvas></div>
+      <div id="pf-donut-wrap" style="position:relative;height:140px;width:140px;flex-shrink:0"></div>
       <div style="flex:1">
         ${[['#639922','Vitórias',tw],['#E24B4A','Derrotas',tl],['#BA7517','Empates',tt]].map(([c,l,v])=>`
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -2376,11 +2376,22 @@ Object.assign(window, {
 // ── Init ─────────────────────────────────────────────────────
 
 
+function makeCanvas(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return null;
+  // Destroy existing chart if any
+  const old = wrap.querySelector('canvas');
+  if (old) { const ch = Chart.getChart(old); if (ch) ch.destroy(); old.remove(); }
+  const canvas = document.createElement('canvas');
+  canvas.style.display = 'block';
+  wrap.appendChild(canvas);
+  return canvas;
+}
+
 function initPlayerCharts() {
-  if (typeof Chart === 'undefined') { console.warn('[Charts] Chart.js not loaded'); return; }
-  if (!G._chartData) { console.warn('[Charts] No chart data'); return; }
-  const wrEl = document.getElementById('pf-wr');
-  if (!wrEl) { console.warn('[Charts] Canvas pf-wr not found in DOM'); return; }
+  if (typeof Chart === 'undefined') return;
+  if (!G._chartData) return;
+  if (!document.getElementById('pf-wr-wrap')) return;
 
   const { labels, wr, w, l, t: ties, pos, tw, tl, tt } = G._chartData;
   const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
@@ -2389,23 +2400,16 @@ function initPlayerCharts() {
   const base   = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { enabled: true } },
+    animation: false,
+    plugins: { legend: { display: false } },
     scales: {
       x: { grid:{color:grid}, ticks:{color:tick,font:{size:10},maxRotation:35,autoSkip:true,maxTicksLimit:8} },
       y: { grid:{color:grid}, ticks:{color:tick,font:{size:10}} }
     }
   };
 
-  // Destroy any existing chart instances first to avoid "canvas already in use"
-  ['pf-wr','pf-wlt','pf-pos','pf-donut'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      const existing = Chart.getChart(el);
-      if (existing) existing.destroy();
-    }
-  });
-
-  new Chart(document.getElementById('pf-wr'), {
+  const cWR = makeCanvas('pf-wr-wrap');
+  if (cWR) new Chart(cWR, {
     type: 'line',
     data: { labels, datasets: [{ data: wr, borderColor:'#378ADD',
       backgroundColor:'rgba(55,138,221,.12)',
@@ -2416,19 +2420,21 @@ function initPlayerCharts() {
            ticks: { ...base.scales.y.ticks, callback: v=>v+'%' } } } }
   });
 
-  new Chart(document.getElementById('pf-wlt'), {
+  const cWLT = makeCanvas('pf-wlt-wrap');
+  if (cWLT) new Chart(cWLT, {
     type: 'bar',
     data: { labels, datasets: [
-      { label:'V', data:w, backgroundColor:'#639922', stack:'s' },
+      { label:'V', data:w,    backgroundColor:'#639922', stack:'s' },
       { label:'E', data:ties, backgroundColor:'#BA7517', stack:'s' },
-      { label:'D', data:l, backgroundColor:'#E24B4A', stack:'s' },
+      { label:'D', data:l,    backgroundColor:'#E24B4A', stack:'s' },
     ]},
     options: { ...base, scales: {
       x: { ...base.scales.x, stacked:true },
       y: { ...base.scales.y, stacked:true, ticks:{...base.scales.y.ticks,stepSize:1} } } }
   });
 
-  new Chart(document.getElementById('pf-pos'), {
+  const cPos = makeCanvas('pf-pos-wrap');
+  if (cPos) new Chart(cPos, {
     type: 'line',
     data: { labels, datasets: [{ data: pos, borderColor:'#7F77DD',
       backgroundColor:'rgba(127,119,221,.1)',
@@ -2439,14 +2445,13 @@ function initPlayerCharts() {
            ticks: { ...base.scales.y.ticks, stepSize:1, callback: v=>'#'+v } } } }
   });
 
-  const donutEl = document.getElementById('pf-donut');
-  if (donutEl) new Chart(donutEl, {
+  const cDon = makeCanvas('pf-donut-wrap');
+  if (cDon) new Chart(cDon, {
     type: 'doughnut',
     data: { labels:['V','D','E'],
       datasets: [{ data:[tw,tl,tt],
         backgroundColor:['#639922','#E24B4A','#BA7517'], borderWidth:0, hoverOffset:4 }] },
-    options: { responsive:true, maintainAspectRatio:false,
-      animation:{animateRotate:true},
+    options: { responsive:true, maintainAspectRatio:false, animation:false,
       plugins:{legend:{display:false}}, cutout:'68%' }
   });
 }
