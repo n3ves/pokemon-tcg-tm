@@ -290,59 +290,426 @@ list.map(p=>`<div class="plr" onclick="nav('pdetail',{pid:'${p.id}'})">
 function renderPDetail() {
   const gp = G.players.find(p => p.id === G.pid);
   if (!gp) return `<div class="empty">Jogador não encontrado</div>`;
-  const participated = G.tours.filter(t => t.players.some(tp => tp.gid===gp.id));
   const age = calcAge(gp.birthDate);
-  let tw=0,tl=0,tt=0;
-  participated.forEach(t => {
-    const tp=t.players.find(x=>x.gid===gp.id);
-    if(!tp)return; const s=calcStats(tp.id,t.rounds); tw+=s.w;tl+=s.l;tt+=s.t;
+
+  // Collect tournament history sorted by date
+  const history = G.tours
+    .filter(t => t.players.some(tp => tp.gid===gp.id) && t.rounds.length > 0)
+    .sort((a,b) => (a.date||a.createdAt) > (b.date||b.createdAt) ? 1 : -1)
+    .map(t => {
+      const tp  = t.players.find(x=>x.gid===gp.id);
+      const st  = getStandings(t.players, t.rounds);
+      const pos = st.findIndex(x=>x.id===tp.id)+1;
+      const s   = calcStats(tp.id, t.rounds);
+      const gp2 = s.w+s.l+s.t;
+      const wr  = gp2>0 ? Math.round(s.w/gp2*100) : 0;
+      return { t, tp, s, pos, total: t.players.filter(p=>!p.dq).length, wr, name: t.name, date: t.date||'' };
+    });
+
+  const allTours = G.tours.filter(t => t.players.some(tp=>tp.gid===gp.id));
+  const tw = history.reduce((a,h)=>a+h.s.w,0);
+  const tl = history.reduce((a,h)=>a+h.s.l,0);
+  const tt = history.reduce((a,h)=>a+h.s.t,0);
+  const totalGP = tw+tl+tt;
+  const avgWR   = totalGP>0 ? Math.round(tw/totalGP*100) : 0;
+
+  // Best placement %
+  const bestPos = history.length ? history.reduce((b,h)=>{
+    const pct = h.pos/h.total; return pct < b ? pct : b;
+  }, 1) : null;
+
+  // Current win streak
+  let streak = 0;
+  for(const h of [...history].reverse()){
+    if(h.s.w > h.s.l) streak++; else break;
+  }
+
+  // Archetypes used
+  const archUsed = {};
+  history.forEach(h => {
+    if(h.tp.deckArchetype) archUsed[h.tp.deckArchetype]=(archUsed[h.tp.deckArchetype]||0)+1;
   });
+  const archRanked = Object.entries(archUsed).sort((a,b)=>b[1]-a[1]);
+
+  // Chart data
+  const chartLabels = history.map(h => h.name.length>12 ? h.name.slice(0,12)+'…' : h.name);
+  const chartWR     = history.map(h => h.wr);
+  const chartW      = history.map(h => h.s.w);
+  const chartL      = history.map(h => h.s.l);
+  const chartT      = history.map(h => h.s.t);
+  const chartPos    = history.map(h => h.pos);
+
   return `
-<div class="fx gap12 mb20">
+<div class="fx gap12 mb16">
   <button class="btn btn-sm" onclick="nav('players')"><i class="ti ti-arrow-left"></i> Voltar</button>
-  <div class="av" style="width:50px;height:50px;font-size:17px">${esc(initials(gp.name))}</div>
+  <div class="av" style="width:48px;height:48px;font-size:16px">${esc(initials(gp.name))}</div>
   <div>
-    <h1>${esc(gp.name)}${gp.nickname?` <span class="muted" style="font-size:15px">"${esc(gp.nickname)}"</span>`:''}</h1>
-    <div class="fx gap6 mt4">${dbadge(gp.division)}${gp.playerId?`<span class="badge bn">ID: ${esc(gp.playerId)}</span>`:''}${age!==null?`<span class="badge bn">${age} anos</span>`:''}</div>
+    <h1 style="font-size:18px">${esc(gp.name)}${gp.nickname?` <span class="muted" style="font-size:14px">"${esc(gp.nickname)}"</span>`:''}</h1>
+    <div class="fx gap6 mt4">
+      ${dbadge(gp.division)}
+      ${gp.playerId?`<span class="badge bn">ID: ${esc(gp.playerId)}</span>`:''}
+      ${gp.city?`<span class="badge bn">${esc(gp.city)}</span>`:''}
+      ${age!==null?`<span class="badge bn">${age} anos</span>`:''}
+    </div>
   </div>
   <button class="btn btn-sm ml" onclick="openPModal('${gp.id}')"><i class="ti ti-edit"></i> Editar</button>
 </div>
+
+<div class="g4 mb16">
+  <div class="sc"><div class="sv">${allTours.length}</div><div class="sl">Torneios</div></div>
+  <div class="sc"><div class="sv">${avgWR}%</div><div class="sl">Win rate</div></div>
+  <div class="sc"><div class="sv">${bestPos!==null?'Top '+Math.round(bestPos*100)+'%':'—'}</div><div class="sl">Melhor posição</div></div>
+  <div class="sc"><div class="sv">${streak>0?streak+'🔥':'—'}</div><div class="sl">Sequência</div></div>
+</div>
+
+${history.length === 0 ? `
+<div class="card mb16"><div class="empty"><i class="ti ti-chart-bar"></i><p>Nenhuma rodada completada ainda</p></div></div>
+` : `
 <div class="g2 gap16 mb16">
   <div class="card">
-    <h3 class="mb12">Informações</h3>
-    <table>${[
-      gp.playerId&&['Player ID',esc(gp.playerId)],
-      gp.city&&['Cidade',esc(gp.city)+(gp.state?' / '+esc(gp.state):'')],
-      gp.birthDate&&['Nascimento',(extractYear(gp.birthDate)||esc(gp.birthDate))+(age!==null?' ('+age+' anos)':'')],
-      gp.contact&&['Contato',esc(gp.contact)],
-      gp.notes&&['Observações',esc(gp.notes)],
-    ].filter(Boolean).map(([k,v])=>`<tr><td class="muted" style="width:40%">${k}</td><td>${v}</td></tr>`).join('')}</table>
+    <div class="lbl mb10">Win rate por torneio</div>
+    <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:#378ADD;display:inline-block"></span>Win rate %</span>
+    </div>
+    <div style="position:relative;height:160px"><canvas id="pf-wr" role="img" aria-label="Win rate por torneio"></canvas></div>
   </div>
   <div class="card">
-    <h3 class="mb12">Estatísticas</h3>
-    <div class="g2">
-      <div class="well tc"><div class="sv">${participated.length}</div><div class="sl">Torneios</div></div>
-      <div class="well tc"><div class="sv">${tw}</div><div class="sl">Vitórias</div></div>
-      <div class="well tc"><div class="sv">${tl}</div><div class="sl">Derrotas</div></div>
-      <div class="well tc"><div class="sv">${tt}</div><div class="sl">Empates</div></div>
+    <div class="lbl mb10">Resultados por torneio</div>
+    <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#639922;display:inline-block"></span>V</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>D</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>E</span>
+    </div>
+    <div style="position:relative;height:160px"><canvas id="pf-wlt" role="img" aria-label="Vitórias, derrotas e empates por torneio"></canvas></div>
+  </div>
+</div>
+
+<div class="g2 gap16 mb16">
+  <div class="card">
+    <div class="lbl mb10">Posição final</div>
+    <div style="position:relative;height:160px"><canvas id="pf-pos" role="img" aria-label="Posição final em cada torneio"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="lbl mb10">Distribuição total</div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="position:relative;height:140px;width:140px;flex-shrink:0"><canvas id="pf-donut" role="img" aria-label="Distribuição de vitórias derrotas e empates"></canvas></div>
+      <div style="flex:1">
+        ${[['#639922','Vitórias',tw],['#E24B4A','Derrotas',tl],['#BA7517','Empates',tt]].map(([c,l,v])=>`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0"></span>
+          <span style="flex:1;font-size:13px;color:var(--t2)">${l}</span>
+          <strong>${v}</strong>
+          <span style="font-size:12px;color:var(--t2)">${totalGP>0?Math.round(v/totalGP*100):0}%</span>
+        </div>`).join('')}
+      </div>
     </div>
   </div>
 </div>
-<h2 class="mb12">Histórico de torneios</h2>
-<div class="card p0">
-${participated.length===0?`<div class="empty"><p>Nenhum torneio</p></div>`:
-participated.map(t=>{
-  const tp=t.players.find(x=>x.gid===gp.id);if(!tp)return'';
-  const s=calcStats(tp.id,t.rounds);
-  const st=getStandings(t.players,t.rounds);
-  const pos=st.findIndex(x=>x.id===tp.id)+1;
-  return `<div class="plr" onclick="openTour('${t.id}')">
-    <div style="flex:1"><div class="fx gap6"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-    <div class="muted small mt4">${esc(t.city||'')} · ${t.rounds.length} rodadas</div></div>
-    <div class="fx gap12"><span class="mono">${s.w}/${s.l}/${s.t}</span>${pos>0?`<span class="badge bn">#${pos}</span>`:''}</div>
-  </div>`;
-}).join('')}
+`}
+
+<div class="g2 gap16 mb16">
+  <div>
+    <h2 class="mb12">Histórico de torneios</h2>
+    <div class="card p0">
+    ${allTours.length===0?`<div class="empty"><p>Nenhum torneio</p></div>`:
+    [...history].reverse().map(h=>{
+      const won = h.pos===1;
+      const top = h.total>0 && h.pos <= Math.ceil(h.total*0.25);
+      return `<div class="plr" style="cursor:pointer" onclick="openTour('${h.t.id}')">
+        <div style="flex:1;min-width:0">
+          <div class="fx gap6 mb4">
+            <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.name)}</strong>
+            ${won?`<span class="badge bs"><i class="ti ti-trophy"></i> 1°</span>`:top?`<span class="badge bi">Top ${Math.ceil(h.total*0.25)}</span>`:''}
+          </div>
+          <div class="muted small">${h.date||''} · ${h.t.rounds.length} rodadas${h.tp.deckArchetype?' · '+esc(h.tp.deckArchetype):''}</div>
+        </div>
+        <div class="fx gap10">
+          <span class="mono" style="font-size:12px">${h.s.w}/${h.s.l}/${h.s.t}</span>
+          <span class="badge bn">#${h.pos}/${h.total}</span>
+          <span class="badge ${h.wr>=50?'bs':'bd'}" style="font-size:11px">${h.wr}%</span>
+        </div>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>
+
+  <div>
+    <h2 class="mb12">Arquétipos jogados</h2>
+    <div class="card">
+    ${archRanked.length===0?`<div class="empty" style="padding:20px"><p>Nenhuma decklist registrada</p></div>`:
+    archRanked.map(([name,count],i)=>{
+      const colors=['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
+      const color = colors[i%colors.length];
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bd)">
+        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+        <span style="flex:1;font-size:13px">${esc(name)}</span>
+        <div style="width:80px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden">
+          <div style="width:${Math.round(count/archRanked[0][1]*100)}%;height:100%;background:${color}"></div>
+        </div>
+        <span class="muted small">${count}x</span>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  if(typeof Chart==='undefined'||!document.getElementById('pf-wr')) return;
+  const labels=${JSON.stringify(chartLabels)};
+  const wr=${JSON.stringify(chartWR)};
+  const w=${JSON.stringify(chartW)};
+  const l=${JSON.stringify(chartL)};
+  const t=${JSON.stringify(chartT)};
+  const pos=${JSON.stringify(chartPos)};
+  const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+  const grid=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)';
+  const tick=isDark?'#9ca3af':'#6b7280';
+  const base={responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:grid},ticks:{color:tick,font:{size:10},maxRotation:30,autoSkip:false}},
+            y:{grid:{color:grid},ticks:{color:tick,font:{size:10}}}}};
+
+  new Chart(document.getElementById('pf-wr'),{type:'line',
+    data:{labels,datasets:[{data:wr,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,.12)',
+      pointBackgroundColor:wr.map(v=>v>=50?'#639922':'#E24B4A'),
+      pointRadius:4,tension:.35,fill:true}]},
+    options:{...base,scales:{...base.scales,
+      y:{...base.scales.y,min:0,max:100,ticks:{...base.scales.y.ticks,callback:v=>v+'%'}}}}});
+
+  new Chart(document.getElementById('pf-wlt'),{type:'bar',
+    data:{labels,datasets:[
+      {label:'V',data:w,backgroundColor:'#639922',stack:'s'},
+      {label:'E',data:t,backgroundColor:'#BA7517',stack:'s'},
+      {label:'D',data:l,backgroundColor:'#E24B4A',stack:'s'},
+    ]},
+    options:{...base,scales:{
+      x:{...base.scales.x,stacked:true},
+      y:{...base.scales.y,stacked:true,ticks:{...base.scales.y.ticks,stepSize:1}}}}});
+
+  new Chart(document.getElementById('pf-pos'),{type:'line',
+    data:{labels,datasets:[{data:pos,borderColor:'#7F77DD',backgroundColor:'rgba(127,119,221,.1)',
+      pointBackgroundColor:pos.map(v=>v===1?'#639922':'#7F77DD'),
+      pointRadius:4,tension:.3,fill:true}]},
+    options:{...base,scales:{...base.scales,
+      y:{...base.scales.y,reverse:true,min:1,
+        ticks:{...base.scales.y.ticks,stepSize:1,callback:v=>'#'+v}}}}});
+
+  if(document.getElementById('pf-donut'))
+    new Chart(document.getElementById('pf-donut'),{type:'doughnut',
+      data:{labels:['V','D','E'],
+        datasets:[{data:[${tw},${tl},${tt}],
+          backgroundColor:['#639922','#E24B4A','#BA7517'],borderWidth:0,hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},cutout:'68%'}});
+})();
+</script>
+`;
+}
+
+/* ════════════════════════════════════════════════════════
+   GLOBAL DECKLISTS PAGE
+════════════════════════════════════════════════════════ */
+function getGlobalArchStats() {
+  // Aggregate archetype usage across all tournaments
+  const stats = {}; // arch → { count, wins, losses, ties, players: Set }
+  G.tours.forEach(t => {
+    t.players.forEach(tp => {
+      if (!tp.deckArchetype) return;
+      const arch = tp.deckArchetype;
+      if (!stats[arch]) stats[arch] = { count:0, w:0, l:0, t:0, players: new Set(), tournaments: new Set() };
+      const s = calcStats(tp.id, t.rounds);
+      stats[arch].count++;
+      stats[arch].w += s.w;
+      stats[arch].l += s.l;
+      stats[arch].t += s.t;
+      if (tp.gid) stats[arch].players.add(tp.gid);
+      stats[arch].tournaments.add(t.id);
+    });
+  });
+  // Convert Sets to counts and calculate win rate
+  return Object.entries(stats).map(([name, s]) => {
+    const gp = s.w + s.l + s.t;
+    return {
+      name, count: s.count, w: s.w, l: s.l, t: s.t,
+      gp, wr: gp > 0 ? Math.round(s.w/gp*100) : 0,
+      players: s.players.size,
+      tournaments: s.tournaments.size,
+    };
+  }).sort((a,b) => b.count - a.count);
+}
+
+function renderGlobalDecklists() {
+  const archs   = getGlobalArchStats();
+  const allUsed = getAllArchetypes(); // for datalist
+  const q       = norm(G.search);
+  const filtered = archs.filter(a => !q || norm(a.name).includes(q));
+  const total    = archs.reduce((s,a) => s+a.count, 0);
+  const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h1 class="mb4">Decklists</h1>
+    <div class="muted small">${total} registros em ${G.tours.filter(t=>t.players.some(p=>p.deckArchetype)).length} torneios</div>
+  </div>
+  <button class="btn btn-p" onclick="openArchModal(null)">
+    <i class="ti ti-plus"></i> Novo arquétipo
+  </button>
+</div>
+
+<div class="sw mb16">
+  <i class="ti ti-search"></i>
+  <input placeholder="Buscar arquétipo..." value="${esc(G.search)}" oninput="G.search=this.value;render()">
+</div>
+
+${filtered.length === 0 ? `
+<div class="card mb16">
+  <div class="empty">
+    <i class="ti ti-cards"></i>
+    <p>${total===0?'Nenhuma decklist registrada ainda. Registre decklists dentro de um torneio na aba Decklists.':'Nenhum resultado para a busca.'}</p>
+  </div>
+</div>` : `
+
+<div style="display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start">
+
+  <div class="card p0 mb16">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Arquétipo</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th>
+      </tr></thead>
+      <tbody>
+      ${filtered.map((a,i) => {
+        const color = archColors[archs.indexOf(a) % archColors.length];
+        const maxCount = filtered[0]?.count || 1;
+        return `<tr>
+          <td class="muted mono" style="font-size:11px">${i+1}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+              <span style="font-weight:500">${esc(a.name)}</span>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:60px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+                <div style="width:${Math.round(a.count/maxCount*100)}%;height:100%;background:${color}"></div>
+              </div>
+              <span class="mono">${a.count}</span>
+            </div>
+          </td>
+          <td class="mono">${a.tournaments}</td>
+          <td class="mono">${a.players}</td>
+          <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
+          <td>
+            <span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card">
+      <div class="lbl mb10">Top arquétipos</div>
+      ${filtered.slice(0,8).map((a,i) => {
+        const color = archColors[archs.indexOf(a) % archColors.length];
+        const maxC = filtered[0]?.count||1;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--bd)">
+          <span style="width:8px;height:8px;border-radius:2px;background:${color};flex-shrink:0"></span>
+          <span style="flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.name)}</span>
+          <div style="width:50px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+            <div style="width:${Math.round(a.count/maxC*100)}%;height:100%;background:${color}"></div>
+          </div>
+          <span class="muted" style="font-size:11px;min-width:18px;text-align:right">${a.count}</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="card">
+      <div class="lbl mb10">Cadastrar arquétipo</div>
+      <p class="muted small mb10">Pré-cadastre arquétipos para facilitar o registro nos torneios.</p>
+      <div class="f mb8">
+        <label>Nome do arquétipo</label>
+        <input id="ga-name" list="ga-list" placeholder="ex: Charizard ex">
+        <datalist id="ga-list">
+          ${allUsed.map(a=>`<option value="${esc(a)}">`).join('')}
+        </datalist>
+      </div>
+      <button class="btn btn-p fw jc" onclick="addGlobalArchetype()">
+        <i class="ti ti-plus"></i> Adicionar
+      </button>
+    </div>
+  </div>
+
+</div>`}`;
+}
+
+function addGlobalArchetype() {
+  const name = document.getElementById('ga-name')?.value?.trim();
+  if (!name) return notify('Informe o nome do arquétipo','warn');
+  // Store in global settings as pre-registered archetypes
+  G.settings.archetypes = G.settings.archetypes || [];
+  if (G.settings.archetypes.some(a => norm(a)===norm(name)))
+    return notify('Arquétipo já existe','warn');
+  G.settings.archetypes.push(name);
+  G.settings.archetypes.sort((a,b) => a.localeCompare(b,'pt'));
+  DB.save(SK.ST, G.settings);
+  notify(`"${name}" adicionado`,'ok');
+  render();
+}
+
+function openArchModal(name) {
+  G.modal = { type:'arch', name: name||'' };
+  render();
+}
+
+function renderArchModal() {
+  const m = G.modal;
+  const isEdit = !!m.name;
+  return `
+<div class="mtitle"><i class="ti ti-cards"></i> ${isEdit?'Editar arquétipo':'Novo arquétipo'}</div>
+<div class="f mb16">
+  <label>Nome</label>
+  <input id="arch-name" value="${esc(m.name)}" placeholder="ex: Charizard ex, Gardevoir ex...">
+</div>
+${isEdit ? `
+<div class="mb12">
+  <button class="btn btn-xs btn-d" onclick="deleteArchetype('${esc(m.name)}')">
+    <i class="ti ti-trash"></i> Remover do banco
+  </button>
+</div>` : ''}
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveArchModal('${esc(m.name)}')"><i class="ti ti-check"></i> Salvar</button>
 </div>`;
+}
+
+function saveArchModal(oldName) {
+  const name = document.getElementById('arch-name')?.value?.trim();
+  if (!name) return notify('Informe o nome','warn');
+  G.settings.archetypes = G.settings.archetypes || [];
+  if (oldName) {
+    // Rename: update all tournament player decklists
+    G.tours.forEach(t => {
+      t.players.forEach(p => { if(p.deckArchetype===oldName) p.deckArchetype=name; });
+    });
+    G.settings.archetypes = G.settings.archetypes.map(a => a===oldName?name:a);
+    DB.save(SK.TN, G.tours);
+  } else {
+    if (!G.settings.archetypes.includes(name)) G.settings.archetypes.push(name);
+  }
+  G.settings.archetypes.sort((a,b)=>a.localeCompare(b,'pt'));
+  DB.save(SK.ST, G.settings);
+  closeM(); notify('Salvo','ok');
+}
+
+function deleteArchetype(name) {
+  if (!confirm(`Remover "${name}" do banco? Não afeta decklists já registradas.`)) return;
+  G.settings.archetypes = (G.settings.archetypes||[]).filter(a=>a!==name);
+  DB.save(SK.ST, G.settings);
+  closeM(); notify('Removido'); render();
 }
 
 function renderTours() {
@@ -958,8 +1325,8 @@ ${standTable(stand, t)}`;
 /* ── DEBUG ── */
 /* ── DECKLISTS ── */
 function getAllArchetypes() {
-  // Coleta todos os arquétipos já usados em todos os torneios
-  const set = new Set();
+  // Merge: pré-cadastrados nas settings + usados em torneios
+  const set = new Set(G.settings.archetypes || []);
   G.tours.forEach(t => t.players.forEach(p => { if(p.deckArchetype) set.add(p.deckArchetype); }));
   return [...set].sort((a,b) => a.localeCompare(b, 'pt'));
 }
@@ -1098,10 +1465,12 @@ function filterDeckList(q) {
 }
 
 function saveDeckQuick() {
-  const pid  = document.getElementById('deck-quick-player')?.value;
-  const arch = document.getElementById('deck-quick-arch')?.value?.trim();
+  const pid   = document.getElementById('deck-quick-player')?.value;
+  const sel   = document.getElementById('deck-quick-arch')?.value?.trim();
+  const custom= document.getElementById('deck-quick-arch-custom')?.value?.trim();
+  const arch  = custom || sel;
   if (!pid)  return notify('Selecione um jogador','warn');
-  if (!arch) return notify('Informe o arquétipo','warn');
+  if (!arch) return notify('Selecione ou digite o arquétipo','warn');
   mtour(t => { t.players = t.players.map(p => p.id===pid ? {...p, deckArchetype:arch} : p); });
   document.getElementById('deck-quick-arch').value = '';
   document.getElementById('deck-quick-player').value = '';
@@ -1441,6 +1810,7 @@ function renderModal() {
 </div>`;
   }
 
+  if (m.type === 'arch') { body = renderArchModal(); }
   if (m.type === 'deck') { body = renderDeckModal(); }
 
   if (m.type === 'judge') {
@@ -1490,6 +1860,7 @@ function render() {
     { icon:'ti-home',   label:'Home',       view:'home' },
     { icon:'ti-users',  label:'Jogadores',  view:'players' },
     { icon:'ti-trophy', label:'Torneios',   view:'tours' },
+    { icon:'ti-cards',  label:'Decklists',  view:'decklists' },
     null,
     { icon:'ti-settings',label:'Config.',   view:'settings' },
   ];
@@ -1506,7 +1877,8 @@ function render() {
   if (G.view==='home')        content = renderHome();
   else if (G.view==='players') content = renderPlayers();
   else if (G.view==='pdetail') content = renderPDetail();
-  else if (G.view==='tours')   content = renderTours();
+  else if (G.view==='tours')     content = renderTours();
+  else if (G.view==='decklists')  content = renderGlobalDecklists();
   else if (G.view==='ctour')   content = renderCreateTour();
   else if (G.view==='tournament') content = renderTour();
   else if (G.view==='settings') content = renderSettings();
@@ -2041,6 +2413,7 @@ Object.assign(window, {
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
+  openArchModal, saveArchModal, deleteArchetype, addGlobalArchetype,
 });
 
 // ── Init ─────────────────────────────────────────────────────
