@@ -1,4 +1,8 @@
 'use strict';
+// Normaliza string: remove acentos e converte para minúsculas
+function norm(s) {
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
 // Estado global, storage e funções de navegação
 
 
@@ -75,6 +79,49 @@ function mtour(fn) {
 
 
 function closeM() { G.modal=null; render(); }
+
+function clearTourPlayers() {
+  mtour(t => { t.players = []; });
+}
+
+/* Add player to tournament being created (before createTour) */
+function ctAddPlayer(gid) {
+  G._ctd = G._ctd || {};
+  G._ctd.players = G._ctd.players || [];
+  const gp = G.players.find(p => p.id === gid);
+  if (!gp) return;
+  if (G._ctd.players.some(p => p.gid === gid)) return notify('Já adicionado','warn');
+  G._ctd.players.push({ id: uid(), gid, name: gp.name, division: gp.division, dropped:false, dq:false, hadBye:false });
+  render();
+}
+
+function ctRemovePlayer(id) {
+  if (!G._ctd) return;
+  G._ctd.players = (G._ctd.players||[]).filter(p => p.id !== id);
+  render();
+}
+
+function renderCTPlayerSearch(q) {
+  const el = document.getElementById('ct-pres');
+  if (!el) return;
+  if (!q || q.length < 1) { el.innerHTML=''; return; }
+  const have = new Set((G._ctd?.players||[]).map(p=>p.gid));
+  const found = G.players.filter(p => !have.has(p.id) && (
+    norm(p.name).includes(norm(q)) ||
+    norm(p.playerId||'').includes(norm(q))
+  )).slice(0, 6);
+  el.innerHTML = found.length === 0
+    ? `<p class="muted small mt8">Sem resultados.</p>`
+    : `<div class="card p0 mt8">${found.map(p=>`
+      <div class="plr" style="padding:8px 12px" onclick="ctAddPlayer('${p.id}');document.getElementById('ct-pq').value='';document.getElementById('ct-pres').innerHTML=''">
+        <div style="flex:1">
+          <div>${esc(p.name)}</div>
+          <div class="muted small">${p.division}${p.playerId?' · '+esc(p.playerId):''}</div>
+        </div>
+        ${dbadge(p.division)}
+        <i class="ti ti-plus muted"></i>
+      </div>`).join('')}</div>`;
+}
 
 function openEditTourModal() {
   G.modal = { type: 'edit-tour' }; render();
@@ -198,12 +245,12 @@ function renderHome() {
 }
 
 function renderPlayers() {
-  const q = G.search.toLowerCase();
+  const q = norm(G.search);
   const list = G.players.filter(p =>
-    !q || p.name.toLowerCase().includes(q) ||
-    (p.nickname||'').toLowerCase().includes(q) ||
-    (p.playerId||'').toLowerCase().includes(q) ||
-    (p.city||'').toLowerCase().includes(q)
+    !q || norm(p.name).includes(q) ||
+    norm(p.nickname||'').includes(q) ||
+    norm(p.playerId||'').includes(q) ||
+    norm(p.city||'').includes(q)
   );
   return `
 <div class="fx sb2 mb16"><h1>Jogadores</h1>
@@ -299,9 +346,9 @@ participated.map(t=>{
 }
 
 function renderTours() {
-  const q = G.search.toLowerCase();
+  const q = norm(G.search);
   const list = G.tours
-    .filter(t => !q || t.name.toLowerCase().includes(q) || (t.city||'').toLowerCase().includes(q))
+    .filter(t => !q || norm(t.name).includes(q) || norm(t.city||'').includes(q))
     .sort((a,b) => b.createdAt-a.createdAt);
   return `
 <div class="fx sb2 mb16"><h1>Torneios</h1>
@@ -402,8 +449,26 @@ function renderCreateTour() {
   <h3 class="mb12">Debug</h3>
   <label class="fx gap6"><input type="checkbox" id="ct-debug" ${d.debugMode?'checked':''}> Ativar modo debug (logs de pareamento detalhados)</label>
 </div>
+<div class="card mb16">
+  <h3 class="mb12">Jogadores <span class="badge bn" id="ct-pcount">${(d.players||[]).length > 0 ? (d.players||[]).length + ' selecionados' : 'opcional'}</span></h3>
+  <p class="muted small mb12">Você pode adicionar jogadores agora ou após criar o torneio.</p>
+  <div class="fx gap6 mb8">
+    <input id="ct-pq" placeholder="Buscar por nome ou ID..." style="flex:1" oninput="renderCTPlayerSearch(this.value)">
+    <button class="btn btn-sm" onclick="openPModal(null,'ctour')"><i class="ti ti-plus"></i> Novo</button>
+  </div>
+  <div id="ct-pres"></div>
+  ${(d.players||[]).length > 0 ? `
+  <div class="sep"></div>
+  <div class="lbl mb6">Selecionados</div>
+  ${(d.players||[]).map((p,i)=>`<div class="plr" style="padding:6px 10px">
+    <span class="mono muted" style="min-width:20px;font-size:11px">${i+1}</span>
+    <span style="flex:1;font-size:13px">${esc(p.name)}</span>
+    ${dbadge(p.division)}
+    <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
+  </div>`).join('')}` : ''}
+</div>
 <button class="btn btn-p fw jc" style="padding:12px" onclick="createTour()">
-  <i class="ti ti-player-play"></i> Criar e registrar jogadores
+  <i class="ti ti-player-play"></i> Criar torneio
 </button>
 </div>`;
 }
@@ -500,14 +565,17 @@ ${t.status==='rounds'&&rnd&&total>0?`
 <div style="flex:1;overflow-y:auto;padding:20px">${body}</div>`;
 }
 
+const REG_PAGE_SIZE = 15;
+
 /* ── REGISTRATION ── */
 function renderReg(t) {
   const n = t.players.length;
   const rec = recRounds(n), cut = recCut(n, t.settings.mode);
   const byDiv = DIVS.map(d=>({d, c:t.players.filter(p=>p.division===d).length})).filter(x=>x.c>0);
+  const isReg = t.status === 'registration';
 
   return `
-<div class="fx sb2 mb16">
+<div class="fx sb2 mb12">
   <div>
     <h2 class="mb4">Registro de jogadores</h2>
     <div class="fx gap6">
@@ -517,64 +585,169 @@ function renderReg(t) {
   </div>
   <div class="fx gap6">
     <button class="btn btn-sm" onclick="openEditTourModal()"><i class="ti ti-edit"></i> Editar info</button>
-    ${t.status==='registration'?`<button class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
+    ${isReg?`<button class="btn btn-p" ${n<4?'disabled title="Mínimo 4 jogadores"':''} onclick="startTour()">
       <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
   </div>
 </div>
-${t.status==='registration'?`
-<div class="g2 gap16">
-  <div class="card">
-    <h3 class="mb12">Adicionar</h3>
-    <div class="f"><label>Buscar banco de dados</label>
-      <div class="fx gap6">
-        <input id="reg-q" placeholder="Nome, ID..." style="flex:1" oninput="renderRegSearch(this.value)">
-        <button class="btn btn-sm" onclick="openPModal(null,true)"><i class="ti ti-plus"></i></button>
+
+${isReg?`
+<div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
+
+  <!-- Painel de busca + add -->
+  <div class="fxc gap12">
+    <div class="card">
+      <h3 class="mb10">Adicionar jogador</h3>
+      <div class="fx gap6 mb8">
+        <input id="reg-q" placeholder="Nome ou Player ID..." style="flex:1"
+          oninput="renderRegSearch(this.value)" onkeydown="if(event.key==='Enter')regSearchEnter()">
+        <button class="btn btn-sm btn-p" onclick="openPModal(null,true)" title="Criar novo jogador">
+          <i class="ti ti-plus"></i>
+        </button>
+      </div>
+      <div id="reg-res"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb8">Banco de jogadores</h3>
+      <div id="reg-db-list">${renderRegDBList(t, '', 0)}</div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb8">Adicionar vários (um por linha)</h3>
+      <textarea id="bulk-in" style="height:72px" placeholder="João Silva&#10;Maria Santos"></textarea>
+      <div class="fx gap8 mt8">
+        <select id="bulk-div" style="flex:1">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
+        <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
       </div>
     </div>
-    <div id="reg-res"></div>
-    <div class="sep"></div>
-    <p class="muted small mb8">Múltiplos (um por linha):</p>
-    <textarea id="bulk-in" style="height:80px" placeholder="João Silva&#10;Maria Santos"></textarea>
-    <div class="fx gap8 mt8">
-      <select id="bulk-div">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
-      <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
+  </div>
+
+  <!-- Lista de inscritos -->
+  <div class="card p0">
+    <div class="fx sb2" style="padding:12px 16px;border-bottom:1px solid var(--bd)">
+      <h3>${n} inscrito${n!==1?'s':''}</h3>
+      ${n>0?`<button class="btn btn-xs btn-d" onclick="if(confirm('Remover todos?'))clearTourPlayers()">
+        <i class="ti ti-trash"></i> Limpar</button>`:''}
     </div>
+    ${n===0
+      ? `<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador ainda</p></div>`
+      : t.players.map((p,i)=>`
+        <div class="plr">
+          <span class="mono muted" style="min-width:26px;font-size:11px">${i+1}</span>
+          <span style="flex:1">${esc(p.name)}</span>
+          ${dbadge(p.division)}
+          ${p.playerId?`<span class="mono muted" style="font-size:10px">${esc(p.playerId)}</span>`:''}
+          <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
+        </div>`).join('')}
   </div>
-  <div class="card p0" style="max-height:420px;overflow-y:auto">
-    ${n===0?`<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador</p></div>`:
-    t.players.map((p,i)=>`<div class="plr">
-      <span class="mono muted" style="min-width:24px">${i+1}</span>
-      <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
-      <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
-    </div>`).join('')}
-  </div>
+
 </div>`:`
 <div class="card p0">
 ${t.players.map((p,i)=>`<div class="plr">
-  <span class="mono muted" style="min-width:24px">${i+1}</span>
+  <span class="mono muted" style="min-width:26px;font-size:11px">${i+1}</span>
   <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
+  ${p.playerId?`<span class="mono muted" style="font-size:10px">${esc(p.playerId)}</span>`:''}
   ${p.dropped?`<span class="badge bn">Dropped</span>`:''}
   ${p.dq?`<span class="badge bd">DQ</span>`:''}
 </div>`).join('')}
 </div>`}`;
 }
 
+/* Lista paginada de todos os jogadores do banco */
+function renderRegDBList(t, filter, page) {
+  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
+  const q = norm(filter||'').trim();
+  const all = G.players
+    .filter(p => !have.has(p.id) && (!q ||
+      norm(p.name).includes(q) ||
+      norm(p.playerId||'').includes(q)))
+    .sort((a,b) => a.name.localeCompare(b.name, 'pt', {sensitivity:'base'}));
+
+  const total = all.length;
+  const pages = Math.ceil(total / REG_PAGE_SIZE) || 1;
+  const pg = Math.max(0, Math.min(page, pages-1));
+  const slice = all.slice(pg * REG_PAGE_SIZE, (pg+1) * REG_PAGE_SIZE);
+
+  if (!total) return `<p class="muted small">Nenhum jogador no banco${q?' para "'+esc(q)+'"':''}.</p>`;
+
+  return `
+<div class="sw mb8" style="margin-bottom:10px">
+  <i class="ti ti-search"></i>
+  <input placeholder="Filtrar..." value="${esc(filter||'')}"
+    oninput="refreshRegDB(this.value)" style="padding-left:34px;font-size:12px">
+</div>
+<div style="max-height:320px;overflow-y:auto;margin:0 -4px">
+  ${slice.map(p=>`
+  <div class="plr" style="padding:7px 10px;cursor:pointer" onclick="addFromDB('${p.id}')">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+      <div class="muted" style="font-size:10px">${p.division}${p.playerId?' · '+esc(p.playerId):''}</div>
+    </div>
+    ${dbadge(p.division)}
+    <i class="ti ti-plus muted" style="font-size:14px;margin-left:4px"></i>
+  </div>`).join('')}
+</div>
+${pages > 1 ? `
+<div class="fx sb2 mt8" style="font-size:12px;color:var(--t2)">
+  <button class="btn btn-xs" ${pg===0?'disabled':''} onclick="regDBPage(${pg-1})">
+    <i class="ti ti-chevron-left"></i>
+  </button>
+  <span>${pg+1} / ${pages} · ${total} jogadores</span>
+  <button class="btn btn-xs" ${pg>=pages-1?'disabled':''} onclick="regDBPage(${pg+1})">
+    <i class="ti ti-chevron-right"></i>
+  </button>
+</div>` : `<p class="muted" style="font-size:11px;margin-top:6px">${total} jogador${total!==1?'es':''}</p>`}`;
+}
+
+// State for DB list
+let _regDBPage = 0, _regDBFilter = '';
+
+function refreshRegDB(filter) {
+  _regDBFilter = filter || '';
+  _regDBPage = 0;
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('reg-db-list');
+  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+}
+
+function regDBPage(pg) {
+  _regDBPage = pg;
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('reg-db-list');
+  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+}
+
+function regSearchEnter() {
+  const q = document.getElementById('reg-q')?.value?.trim();
+  if (!q) return;
+  const t = ct(); if (!t) return;
+  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
+  const found = G.players.filter(p => !have.has(p.id) && (
+    norm(p.name).startsWith(norm(q)) ||
+    norm(p.playerId||'') === norm(q)
+  ));
+  if (found.length === 1) { addFromDB(found[0].id); document.getElementById('reg-q').value=''; }
+}
+
 function renderRegSearch(q) {
   const el = document.getElementById('reg-res');
   if (!el) return;
-  if (!q || q.length < 2) { el.innerHTML=''; return; }
-  const t = ct();
+  if (!q || q.length < 1) { el.innerHTML=''; return; }
+  const t = ct(); if (!t) return;
   const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
   const found = G.players.filter(p => !have.has(p.id) && (
-    p.name.toLowerCase().includes(q.toLowerCase()) ||
-    (p.playerId||'').toLowerCase().includes(q.toLowerCase())
-  )).slice(0,5);
-  el.innerHTML = found.length===0
+    norm(p.name).includes(norm(q)) ||
+    norm(p.playerId||'').includes(norm(q))
+  )).slice(0, 6);
+  el.innerHTML = found.length === 0
     ? `<p class="muted small mt8">Sem resultados. <button class="btn btn-xs" onclick="openPModal(null,true)">Criar novo</button></p>`
     : `<div class="card p0 mt8">${found.map(p=>`
-      <div class="plr" onclick="addFromDB('${p.id}')">
-        <div class="av" style="width:28px;height:28px;font-size:10px">${esc(initials(p.name))}</div>
-        <div style="flex:1"><div>${esc(p.name)}</div><div class="muted small">${p.division}${p.playerId?' · '+p.playerId:''}</div></div>
+      <div class="plr" style="padding:8px 12px" onclick="addFromDB('${p.id}');document.getElementById('reg-q').value='';document.getElementById('reg-res').innerHTML=''">
+        <div style="flex:1">
+          <div style="font-size:13px">${esc(p.name)}</div>
+          <div class="muted small">${p.division}${p.playerId?' · <span class="mono">'+esc(p.playerId)+'</span>':''}</div>
+        </div>
+        ${dbadge(p.division)}
         <i class="ti ti-plus muted"></i>
       </div>`).join('')}</div>`;
 }
@@ -1141,7 +1314,7 @@ function openPModal(id, addToTour=false) { G.modal={type:'player',id,addToTour};
 function savePlayer(id, addToTourId) {
   const name = document.getElementById('m-name')?.value?.trim();
   if (!name) return notify('Nome é obrigatório','err');
-  const dup = G.players.find(p=>p.name.toLowerCase()===name.toLowerCase()&&p.id!==id);
+  const dup = G.players.find(p=>norm(p.name)===norm(name)&&p.id!==id);
   if (dup && !confirm(`"${dup.name}" já existe. Criar mesmo assim?`)) return;
   const data = {
     name,
@@ -1215,7 +1388,7 @@ function importPlayersTOM() {
       // Try to find existing by playerId or name
       const existing = G.players.find(p =>
         (userId && p.playerId === userId) ||
-        p.name.toLowerCase() === name.toLowerCase()
+        norm(p.name) === norm(name)
       );
 
       if (existing) {
@@ -1291,6 +1464,8 @@ function createTour() {
     _timer:0, _timerOn:false,
   };
   t._timer = t.settings.timerMinutes*60;
+  // Include players pre-selected during creation
+  if (d.players?.length) t.players = d.players;
   G.tours.push(t); G._ctd=null;
   saveAll(); openTour(t.id);
 }
@@ -1318,6 +1493,12 @@ function addFromDB(gid) {
   // Clear search
   const inp=document.getElementById('reg-q'); if(inp){inp.value='';} const r=document.getElementById('reg-res'); if(r)r.innerHTML='';
   notify(`${gp.name} adicionado`,'ok');
+  // Refresh DB list without full re-render
+  setTimeout(()=>{
+    const t2=ct();
+    const el=document.getElementById('reg-db-list');
+    if(el&&t2) el.innerHTML=renderRegDBList(t2,_regDBFilter,_regDBPage);
+  },50);
 }
 
 function addBulk() {
@@ -1326,7 +1507,7 @@ function addBulk() {
   const div=document.getElementById('bulk-div')?.value||'Masters';
   let added=0;
   txt.split('\n').map(l=>l.trim()).filter(Boolean).forEach(name=>{
-    let gp=G.players.find(p=>p.name.toLowerCase()===name.toLowerCase());
+    let gp=G.players.find(p=>norm(p.name)===norm(name));
     if(!gp){gp={id:uid(),name,division:div,createdAt:Date.now(),nickname:'',playerId:'',city:'',state:'',birthDate:'',contact:'',notes:''};G.players.push(gp);}
     if(!t.players.some(p=>p.gid===gp.id)){t.players.push({id:uid(),gid:gp.id,name:gp.name,division:div,dropped:false,dq:false,hadBye:false});added++;}
   });
@@ -1628,6 +1809,8 @@ Object.assign(window, {
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
   openEditTourModal, saveEditTour,
+  clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
+  regDBPage, refreshRegDB, regSearchEnter,
 });
 
 // ── Init ─────────────────────────────────────────────────────
