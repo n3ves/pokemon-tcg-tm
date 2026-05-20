@@ -113,6 +113,7 @@ const SB = {
     return {
       id: t.id, name: t.name,
       city: t.city||null, state: t.state||null, date: t.date||null,
+      venue_id: t.venueId||null,
       mode: ({'cust':'custom'}[t.mode]||t.mode||'custom'), status: t.status, current_round: t.currentRound,
       settings: t.settings, timer_seconds: _timer||(t.settings?.timerMinutes||50)*60,
       top_bracket: t.topBracket||null,
@@ -140,6 +141,10 @@ const SB = {
   savePlayers:    arr => arr.length ? sbFetch('POST','players',arr.map(SB.pRow)) : Promise.resolve(),
   savePlayer:     p   => sbFetch('POST','players',SB.pRow(p)),
   deletePlayer:   id  => sbFetch('DELETE','players',null,`?id=eq.${id}`),
+
+  loadVenues:    ()  => sbFetch('GET','venues',null,'?order=name.asc'),
+  saveVenue:     v   => sbFetch('POST','venues',v),
+  deleteVenue:   id  => sbFetch('DELETE','venues',null,`?id=eq.${id}`),
 
   loadTournaments: () => sbFetch('GET','tournaments',null,
     '?select=id,name,city,state,date,mode,status,current_round,settings,timer_seconds,top_bracket,full_state,created_at&order=created_at.desc'),

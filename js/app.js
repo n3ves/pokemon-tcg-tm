@@ -57,8 +57,8 @@ async function syncToSupabase(tourId) {
 }
 
 const G = {
-  view:'home', players:[], tours:[], settings:{},
-  tid:null, tab:'reg',
+  view:'home', players:[], tours:[], settings:{}, venues:[],
+  tid:null, tab:'reg', vid:null,
   modal:null, notif:null,
   search:'', lastLog:[], timerIv:null,
   loading:true, loadError:'',
@@ -136,6 +136,7 @@ function saveEditTour() {
     t.state       = document.getElementById('et-state')?.value?.trim()||'';
     t.date        = document.getElementById('et-date')?.value||'';
     t.sanctionedId= document.getElementById('et-sanction')?.value?.trim()||'';
+    t.venueId     = document.getElementById('et-venue')?.value||null;
   });
   closeM();
   notify('Informações atualizadas','ok');
@@ -198,6 +199,11 @@ function yearToTdfBirth(bd) {
   const y = extractYear(bd);
   if (!y) return '02/27/1990';
   return '02/27/' + y;
+}
+function venueName(id) {
+  if (!id) return '';
+  const v = G.venues.find(x=>x.id===id);
+  return v ? v.name : '';
 }
 function initials(name) { return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
 
@@ -777,6 +783,198 @@ function deleteArchetype(name) {
   closeM(); notify('Removido'); render();
 }
 
+
+/* ════════════════════════════════════════════════════════
+   VENUES — Locais
+════════════════════════════════════════════════════════ */
+function renderVenues() {
+  const q = norm(G.search);
+  const list = G.venues
+    .filter(v => !q || norm(v.name).includes(q) || norm(v.city||'').includes(q) || norm(v.responsible||'').includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h1 class="mb4">Locais</h1>
+    <div class="muted small">${G.venues.length} local${G.venues.length!==1?'is':''} cadastrado${G.venues.length!==1?'s':''}</div>
+  </div>
+  <button class="btn btn-p" onclick="openVenueModal(null)"><i class="ti ti-plus"></i> Novo local</button>
+</div>
+<div class="sw mb16">
+  <i class="ti ti-search"></i>
+  <input id="venues-search" placeholder="Buscar por nome, cidade, responsável..." value="${esc(G.search)}" oninput="updateVenuesList(this.value)">
+</div>
+<div class="card p0" id="venues-list">
+  ${renderVenueRows(list)}
+</div>`;
+}
+
+function renderVenueRows(list) {
+  if (!list.length) return `<div class="empty"><i class="ti ti-building-store"></i><p>Nenhum local encontrado</p></div>`;
+  return list.map(v => {
+    const tourCount = G.tours.filter(t => t.venueId === v.id).length;
+    return `<div class="plr" onclick="nav('vdetail',{vid:'${v.id}'})">
+      <div class="av" style="background:var(--ib);color:var(--it);border-radius:8px">
+        <i class="ti ti-building-store" style="font-size:16px"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="fx gap6 mb4">
+          <strong>${esc(v.name)}</strong>
+          ${v.nickname?`<span class="muted small">"${esc(v.nickname)}"</span>`:''}
+          ${v.active===false?`<span class="badge bd">Inativo</span>`:''}
+        </div>
+        <div class="muted small">
+          ${[v.city, v.state].filter(Boolean).join(' / ')}
+          ${v.responsible?' · '+esc(v.responsible):''}
+          ${tourCount>0?` · ${tourCount} torneio${tourCount!==1?'s':''}`: ''}
+        </div>
+      </div>
+      <div class="fx gap4">
+        <button class="btn btn-xs" onclick="event.stopPropagation();openVenueModal('${v.id}')"><i class="ti ti-edit"></i></button>
+        <i class="ti ti-chevron-right muted"></i>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateVenuesList(q) {
+  G.search = q;
+  const nq = norm(q);
+  const list = G.venues
+    .filter(v => !nq || norm(v.name).includes(nq) || norm(v.city||'').includes(nq) || norm(v.responsible||'').includes(nq))
+    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
+  const el = document.getElementById('venues-list');
+  if (el) el.innerHTML = renderVenueRows(list);
+}
+
+function renderVenueDetail() {
+  const v = G.venues.find(x=>x.id===G.vid);
+  if (!v) return `<div class="empty">Local não encontrado</div>`;
+  const tours = G.tours.filter(t => t.venueId === v.id).sort((a,b)=>b.createdAt-a.createdAt);
+
+  return `
+<div class="fx gap12 mb16">
+  <button class="btn btn-sm" onclick="nav('venues')"><i class="ti ti-arrow-left"></i> Voltar</button>
+  <div class="av" style="width:48px;height:48px;font-size:20px;background:var(--ib);color:var(--it);border-radius:10px">
+    <i class="ti ti-building-store"></i>
+  </div>
+  <div>
+    <h1>${esc(v.name)}${v.nickname?` <span class="muted" style="font-size:14px">"${esc(v.nickname)}"</span>`:''}</h1>
+    <div class="fx gap6 mt4">
+      ${v.active===false?`<span class="badge bd">Inativo</span>`:`<span class="badge bs">Ativo</span>`}
+      ${v.city?`<span class="badge bn">${esc(v.city)}${v.state?' / '+v.state:''}</span>`:''}
+    </div>
+  </div>
+  <button class="btn btn-sm ml" onclick="openVenueModal('${v.id}')"><i class="ti ti-edit"></i> Editar</button>
+</div>
+
+<div class="g2 gap16 mb16">
+  <div class="card">
+    <h3 class="mb12">Informações</h3>
+    <table>${[
+      v.address  && ['Endereço',  esc(v.address)],
+      (v.city||v.state) && ['Cidade', [esc(v.city||''), esc(v.state||'')].filter(Boolean).join(' / ')],
+      v.zip      && ['CEP',       esc(v.zip)],
+      v.responsible && ['Responsável', esc(v.responsible)],
+      v.contact  && ['Contato',   esc(v.contact)],
+      v.notes    && ['Observações',esc(v.notes)],
+    ].filter(Boolean).map(([k,vv])=>`<tr><td class="muted" style="width:40%;padding:4px 0">${k}</td><td style="padding:4px 0">${vv}</td></tr>`).join('')}</table>
+  </div>
+  <div class="card">
+    <h3 class="mb12">Estatísticas</h3>
+    <div class="g2">
+      <div class="well tc"><div class="sv">${tours.length}</div><div class="sl">Torneios</div></div>
+      <div class="well tc"><div class="sv">${tours.reduce((s,t)=>s+t.players.length,0)}</div><div class="sl">Jogadores totais</div></div>
+      <div class="well tc"><div class="sv">${tours.filter(t=>t.status==='finished').length}</div><div class="sl">Finalizados</div></div>
+      <div class="well tc"><div class="sv">${tours.filter(t=>t.status!=='finished'&&t.status!=='registration').length}</div><div class="sl">Ativos</div></div>
+    </div>
+  </div>
+</div>
+
+<h2 class="mb12">Torneios neste local</h2>
+<div class="card p0">
+${tours.length===0?`<div class="empty"><p>Nenhum torneio vinculado</p></div>`:
+tours.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
+  <div style="flex:1"><div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
+  <div class="muted small">${t.date||''} · ${t.players.length} jogadores · ${t.rounds.length} rodadas</div></div>
+  <i class="ti ti-chevron-right muted"></i>
+</div>`).join('')}
+</div>`;
+}
+
+function openVenueModal(id) {
+  G.modal = { type:'venue', id }; render();
+}
+
+function renderVenueModal() {
+  const m = G.modal;
+  const v = m.id ? G.venues.find(x=>x.id===m.id) : null;
+  return `
+<div class="mtitle"><i class="ti ti-building-store"></i> ${v?'Editar local':'Novo local'}</div>
+<div class="g2">
+  <div class="f"><label>Nome *</label><input id="vm-name" value="${esc(v?.name||'')}" placeholder="Pokémon Shop Rio" autofocus></div>
+  <div class="f"><label>Nome curto</label><input id="vm-nick" value="${esc(v?.nickname||'')}" placeholder="Liga Rio"></div>
+</div>
+<div class="f"><label>Endereço</label><input id="vm-addr" value="${esc(v?.address||'')}"></div>
+<div class="g2">
+  <div class="f"><label>Cidade</label><input id="vm-city" value="${esc(v?.city||'')}"></div>
+  <div class="f"><label>Estado</label><input id="vm-state" value="${esc(v?.state||'')}"></div>
+</div>
+<div class="g2">
+  <div class="f"><label>CEP</label><input id="vm-zip" value="${esc(v?.zip||'')}"></div>
+  <div class="f"><label>Responsável</label><input id="vm-resp" value="${esc(v?.responsible||'')}"></div>
+</div>
+<div class="g2">
+  <div class="f"><label>Contato</label><input id="vm-contact" value="${esc(v?.contact||'')}" placeholder="e-mail ou telefone"></div>
+  <div class="f" style="justify-content:flex-end"><label class="fx gap6 mt4" style="cursor:pointer">
+    <input type="checkbox" id="vm-active" ${v?.active===false?'':'checked'}> Ativo
+  </label></div>
+</div>
+<div class="f mb16"><label>Observações</label><textarea id="vm-notes" style="height:60px">${esc(v?.notes||'')}</textarea></div>
+${v?`<div class="mb12"><button class="btn btn-xs btn-d" onclick="deleteVenue('${v.id}')"><i class="ti ti-trash"></i> Excluir local</button></div>`:''}
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveVenueModal('${m.id||''}')"><i class="ti ti-check"></i> Salvar</button>
+</div>`;
+}
+
+async function saveVenueModal(id) {
+  const name = document.getElementById('vm-name')?.value?.trim();
+  if (!name) return notify('Nome é obrigatório','err');
+  const data = {
+    id:          id || uid(),
+    name,
+    nickname:    document.getElementById('vm-nick')?.value?.trim()||null,
+    address:     document.getElementById('vm-addr')?.value?.trim()||null,
+    city:        document.getElementById('vm-city')?.value?.trim()||null,
+    state:       document.getElementById('vm-state')?.value?.trim()||null,
+    zip:         document.getElementById('vm-zip')?.value?.trim()||null,
+    responsible: document.getElementById('vm-resp')?.value?.trim()||null,
+    contact:     document.getElementById('vm-contact')?.value?.trim()||null,
+    notes:       document.getElementById('vm-notes')?.value?.trim()||null,
+    active:      document.getElementById('vm-active')?.checked ?? true,
+  };
+  if (id) {
+    G.venues = G.venues.map(v => v.id===id ? {...v,...data} : v);
+  } else {
+    G.venues.push(data);
+  }
+  DB.save('ptcg_venues_v3', G.venues);
+  SB.saveVenue(data).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
+  closeM();
+  notify('Local salvo','ok');
+}
+
+function deleteVenue(id) {
+  if (!confirm('Excluir este local? Os torneios vinculados perderão a referência.')) return;
+  G.venues = G.venues.filter(v=>v.id!==id);
+  DB.save('ptcg_venues_v3', G.venues);
+  SB.deleteVenue(id).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
+  notify('Local excluído');
+  nav('venues');
+}
+
 function renderTours() {
   const q = norm(G.search);
   const list = G.tours
@@ -798,7 +996,7 @@ ${list.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torn
 list.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
   <div style="flex:1">
     <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-    <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
+    <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')}${t.venueId?' · '+esc(venueName(t.venueId)):''} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
   </div>
   <div class="fx gap4">
     <button class="btn btn-xs" onclick="event.stopPropagation();exportTour('${t.id}')"><i class="ti ti-download"></i></button>
@@ -828,6 +1026,7 @@ function renderCreateTour() {
   <div class="g2"><div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')}"></div>
   <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')}"></div></div>
   <div class="g2">
+    <div class="g2">
     <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}"></div>
     <div class="f"><label>ID Sancionada</label><input id="ct-sanction" placeholder="##-##-######" value="${esc(d.sanctionedId||'')}" style="font-family:var(--mono)"></div>
   </div>
@@ -982,6 +1181,7 @@ function renderTour() {
   <strong>${esc(t.name)}</strong>
   ${stbadge(t)}
   <span class="badge bn">${t.players.length} jog.</span>
+  ${t.venueId?`<span class="badge bn"><i class="ti ti-building-store"></i> ${esc(venueName(t.venueId))}</span>`:''}
   ${t.status==='rounds'?renderTimerBlock(t):''}
 </div>
 <div class="tabs">
@@ -2156,12 +2356,19 @@ function renderModal() {
   <div class="f"><label>Data</label><input type="date" id="et-date" value="${t?.date||''}"></div>
   <div class="f"><label>ID Sancionada</label><input id="et-sanction" placeholder="##-##-######" value="${esc(t?.sanctionedId||'')}" style="font-family:var(--mono)"></div>
 </div>
+<div class="f"><label>Local</label>
+  <select id="et-venue">
+    <option value="">Sem local</option>
+    ${G.venues.filter(v=>v.active!==false).map(v=>`<option value="${v.id}" ${(t?.venueId||'')=== v.id?'selected':''}>${esc(v.name)}${v.city?' — '+esc(v.city):''}</option>`).join('')}
+  </select>
+</div>
 <div class="fx gap6" style="justify-content:flex-end;margin-top:4px">
   <button class="btn" onclick="closeM()">Cancelar</button>
   <button class="btn btn-p" onclick="saveEditTour()"><i class="ti ti-check"></i> Salvar</button>
 </div>`;
   }
 
+  if (m.type === 'venue') { body = renderVenueModal(); }
   if (m.type === 'arch') { body = renderArchModal(); }
   if (m.type === 'deck') { body = renderDeckModal(); }
 
@@ -2213,6 +2420,7 @@ function render() {
     { icon:'ti-users',  label:'Jogadores',  view:'players' },
     { icon:'ti-trophy', label:'Torneios',   view:'tours' },
     { icon:'ti-cards',  label:'Decklists',  view:'decklists' },
+    { icon:'ti-building-store', label:'Locais', view:'venues' },
     null,
     { icon:'ti-settings',label:'Config.',   view:'settings' },
   ];
@@ -2231,6 +2439,8 @@ function render() {
   else if (G.view==='pdetail') content = renderPDetail();
   else if (G.view==='tours')     content = renderTours();
   else if (G.view==='decklists')  content = renderGlobalDecklists();
+  else if (G.view==='venues')      content = renderVenues();
+  else if (G.view==='vdetail')     content = renderVenueDetail();
   else if (G.view==='ctour')   content = renderCreateTour();
   else if (G.view==='tournament') content = renderTour();
   else if (G.view==='settings') content = renderSettings();
@@ -2393,6 +2603,7 @@ function createTour() {
     state: document.getElementById('ct-state')?.value?.trim()||'',
     date: document.getElementById('ct-date')?.value||'',
     sanctionedId: document.getElementById('ct-sanction')?.value?.trim()||'',
+      venueId: document.getElementById('ct-venue')?.value||null,
     mode: d.mode||'cup',
     status: 'registration',
     players:[], rounds:[], currentRound:0, topBracket:null,
@@ -2768,7 +2979,8 @@ Object.assign(window, {
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
   openArchModal, saveArchModal, deleteArchetype, addGlobalArchetype,
   printPairings, printMatchSlips, printStandings,
-  updatePlayersList, updateToursList, updateDecksList,
+  updatePlayersList, updateToursList, updateDecksList, updateVenuesList,
+  openVenueModal, saveVenueModal, deleteVenue,
 });
 
 // ── Init ─────────────────────────────────────────────────────
@@ -2826,7 +3038,7 @@ function updateToursList(q) {
     : list.map(t => `<div class="plr" onclick="openTour('${t.id}')">
         <div style="flex:1">
           <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-          <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
+          <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')}${t.venueId?' · '+esc(venueName(t.venueId)):''} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
         </div>
         <div class="fx gap4">
           <button class="btn btn-xs" onclick="event.stopPropagation();exportTour('${t.id}')"><i class="ti ti-download"></i></button>
@@ -2872,6 +3084,7 @@ function updateDecksList(q) {
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
+  G.venues   = DB.load('ptcg_venues_v3', []);
   G.settings = DB.load(SK.ST, { separateDivisions:true, standingsByDiv:true, timerMinutes:50, seed:'', debugMode:false });
   G.tours.forEach(t => { if(!t._timer) t._timer=(t.settings?.timerMinutes||50)*60; t._timerOn=false; });
   G.loading  = false;
@@ -2890,18 +3103,19 @@ async function init() {
   try {
     setSyncStatus('syncing');
     // Load players and tournaments in parallel
-    const [sbPlayers, sbTours] = await Promise.all([
+    const [sbPlayers, sbTours, sbVenues] = await Promise.all([
       SB.loadPlayers(),
       SB.loadTournaments(),
+      SB.loadVenues(),
     ]);
 
-    // Map DB rows to internal format
     G.players = (sbPlayers || []).map(SB.rowP);
     G.tours   = (sbTours   || []).map(SB.rowT);
+    G.venues  = sbVenues || [];
 
-    // Cache locally
     DB.save(SK.PL, G.players);
     DB.save(SK.TN, G.tours);
+    DB.save('ptcg_venues_v3', G.venues);
 
     setSyncStatus('ok');
   } catch (e) {
