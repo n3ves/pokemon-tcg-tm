@@ -406,6 +406,12 @@ function svgDonut(values, colors, size=140) {
   });
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
 }
+
+// Match tournament player to global player (by gid OR playerId)
+function tpMatchesGP(tp, gp) {
+  return (tp.gid && tp.gid === gp.id) ||
+         (tp.playerId && gp.playerId && tp.playerId === gp.playerId);
+}
 function renderPDetail() {
   const gp = G.players.find(p => p.id === G.pid);
   if (!gp) return `<div class="empty">Jogador não encontrado</div>`;
@@ -413,10 +419,10 @@ function renderPDetail() {
 
   // Collect tournament history sorted by date
   const history = G.tours
-    .filter(t => t.players.some(tp => tp.gid===gp.id) && t.rounds.length > 0)
+    .filter(t => t.players.some(tp => tpMatchesGP(tp, gp)) && t.rounds.length > 0)
     .sort((a,b) => (a.date||a.createdAt) > (b.date||b.createdAt) ? 1 : -1)
     .map(t => {
-      const tp  = t.players.find(x=>x.gid===gp.id);
+      const tp  = t.players.find(x=>tpMatchesGP(x, gp));
       const st  = getStandings(t.players, t.rounds);
       const pos = st.findIndex(x=>x.id===tp.id)+1;
       const s   = calcStats(tp.id, t.rounds);
@@ -425,7 +431,7 @@ function renderPDetail() {
       return { t, tp, s, pos, total: t.players.filter(p=>!p.dq).length, wr, name: t.name, date: t.date||'' };
     });
 
-  const allTours = G.tours.filter(t => t.players.some(tp=>tp.gid===gp.id));
+  const allTours = G.tours.filter(t => t.players.some(tp=>tpMatchesGP(tp, gp)));
   const tw = history.reduce((a,h)=>a+h.s.w,0);
   const tl = history.reduce((a,h)=>a+h.s.l,0);
   const tt = history.reduce((a,h)=>a+h.s.t,0);
@@ -594,7 +600,7 @@ function getGlobalArchStats() {
       stats[arch].w += s.w;
       stats[arch].l += s.l;
       stats[arch].t += s.t;
-      if (tp.gid) stats[arch].players.add(tp.gid);
+      const playerKey = tp.gid || tp.playerId; if (playerKey) stats[arch].players.add(playerKey);
       stats[arch].tournaments.add(t.id);
     });
   });
