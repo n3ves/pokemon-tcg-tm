@@ -107,10 +107,6 @@ function _refreshCTPlayerPanel() {
   if (!el) { render(); return; }  // fallback full render if panel not found
   const d = G._ctd || {};
   const players = d.players || [];
-  const count = players.length;
-  const countEl = document.getElementById('ct-pcount');
-  if (countEl) countEl.textContent = count > 0 ? count + ' selecionados' : 'opcional';
-
   el.innerHTML = players.length === 0 ? '' : `
     <div class="sep" style="margin:8px 0"></div>
     <div class="lbl mb6">Selecionados</div>
@@ -121,13 +117,18 @@ function _refreshCTPlayerPanel() {
       <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
     </div>`).join('')}`;
 
-  // Clear search box and results
+  // Clear search box and results — no render() triggered
   const inp = document.getElementById('ct-pq');
-  if (inp) { inp.value = ''; }
+  if (inp) { inp.value = ''; inp.focus(); }
   const res = document.getElementById('ct-pres');
   if (res) res.innerHTML = '';
-
-  notify((G.players.find(p=>p.id===players[players.length-1]?.gid)?.name||'Jogador') + ' adicionado','ok');
+  // Pulse the counter badge instead of notify (avoids 3s render timer)
+  const countEl = document.getElementById('ct-pcount');
+  if (countEl) {
+    countEl.textContent = players.length + ' selecionado' + (players.length!==1?'s':'');
+    countEl.className = 'badge bs';
+    setTimeout(()=>{ countEl.className='badge bn'; }, 1500);
+  }
 }
 function ctAddPlayer(gid) {
   saveCTFormState();
@@ -1224,13 +1225,13 @@ function renderCreateTour() {
 <div style="max-width:580px">
 <div class="card mb16">
   <h3 class="mb16">Informações</h3>
-  <div class="f"><label>Nome *</label><input id="ct-name" placeholder="Liga Cup Rio — Maio 2025" value="${esc(d.name||'')}"></div>
-  <div class="g2"><div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')}"></div>
-  <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')}"></div></div>
+  <div class="f"><label>Nome *</label><input id="ct-name" placeholder="Liga Cup Rio — Maio 2025" value="${esc(d.name||'')} " oninput="G._ctd=G._ctd||{};G._ctd.name=this.value"></div>
+  <div class="g2"><div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')} " oninput="G._ctd=G._ctd||{};G._ctd.city=this.value.trim()"></div>
+  <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')} " oninput="G._ctd=G._ctd||{};G._ctd.state=this.value.trim()"></div></div>
   <div class="g2">
     <div class="g2">
-    <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}"></div>
-    <div class="f"><label>ID Sancionada</label><input id="ct-sanction" placeholder="##-##-######" value="${esc(d.sanctionedId||'')}" style="font-family:var(--mono)"></div>
+    <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}" onchange="G._ctd=G._ctd||{};G._ctd.date=this.value"></div>
+    <div class="f"><label>ID Sancionada</label><input id="ct-sanction" placeholder="##-##-######" value="${esc(d.sanctionedId||'')} " style="font-family:var(--mono)" oninput="G._ctd=G._ctd||{};G._ctd.sanctionedId=this.value"></div>
   </div>
 </div>
 <div class="card mb16">
@@ -1254,7 +1255,7 @@ function renderCreateTour() {
       </select>
       ${d.totalRounds==='custom'?'<input type="number" id="ct-rounds-custom" min="3" max="15" value="${d.customRounds||3}" style="margin-top:6px" placeholder="Mínimo 3">':''}
     </div>
-    <div class="f"><label>Top Cut</label><select id="ct-cut">
+    <div class="f"><label>Top Cut</label><select id="ct-cut" onchange="G._ctd=G._ctd||{};G._ctd.topCutSize=Number(this.value)">
       <option value="0" ${(d.topCutSize||0)===0?'selected':''}>Sem top cut</option>
       <option value="4" ${(d.topCutSize||0)===4?'selected':''}>Top 4</option>
       <option value="8" ${(d.topCutSize||0)===8?'selected':''}>Top 8</option>
@@ -1267,20 +1268,20 @@ function renderCreateTour() {
     No modo Padrão, o nº de rodadas é definido automaticamente ao iniciar o torneio com base no total de jogadores.
   </div>
   <div class="g2">
-    <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="ct-timer" min="10" max="90" value="${d.timerMinutes||50}"></div>
-    <div class="f"><label>Seed (vazio = aleatório)</label><input id="ct-seed" placeholder="ex: 42" value="${d.seed||''}"></div>
+    <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="ct-timer" min="10" max="90" value="${d.timerMinutes||50}" oninput="G._ctd=G._ctd||{};G._ctd.timerMinutes=Number(this.value)"></div>
+    <div class="f"><label>Seed (vazio = aleatório)</label><input id="ct-seed" placeholder="ex: 42" value="${d.seed||''}" oninput="G._ctd=G._ctd||{};G._ctd.seed=this.value"></div>
   </div>
 </div>
 <div class="card mb16">
   <h3 class="mb12">Divisões</h3>
   <div class="fxc gap12">
-    <label class="fx gap6"><input type="checkbox" id="ct-sepdiv" ${(d.separateDivisions!==false)?'checked':''}> Pareamentos separados por divisão</label>
-    <label class="fx gap6"><input type="checkbox" id="ct-divst"  ${(d.standingsByDiv!==false)?'checked':''}> Standings separados por divisão</label>
+    <label class="fx gap6"><input type="checkbox" id="ct-sepdiv" ${(d.separateDivisions!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.separateDivisions=this.checked"> Pareamentos separados por divisão</label>
+    <label class="fx gap6"><input type="checkbox" id="ct-divst"  ${(d.standingsByDiv!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.standingsByDiv=this.checked"> Standings separados por divisão</label>
   </div>
 </div>
 <div class="card mb16">
   <h3 class="mb12">Debug</h3>
-  <label class="fx gap6"><input type="checkbox" id="ct-debug" ${d.debugMode?'checked':''}> Ativar modo debug (logs de pareamento detalhados)</label>
+  <label class="fx gap6"><input type="checkbox" id="ct-debug" ${d.debugMode?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.debugMode=this.checked"> Ativar modo debug (logs de pareamento detalhados)</label>
 </div>
 <div class="card mb16">
   <h3 class="mb12">Jogadores <span class="badge bn" id="ct-pcount">${(d.players||[]).length > 0 ? (d.players||[]).length + ' selecionados' : 'opcional'}</span></h3>
