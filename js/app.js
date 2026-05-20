@@ -360,13 +360,31 @@ function renderCreateTour() {
       <strong>${m.name}</strong><div class="small muted">${m.desc}</div></div>`).join('')}
   </div>
   <div class="g2">
-    <div class="f"><label>Rodadas Swiss</label><input type="number" id="ct-rounds" min="1" max="15" value="${d.totalRounds||4}"></div>
+    <div class="f">
+      <label>Rodadas Swiss</label>
+      <select id="ct-rounds" onchange="onCTRoundsChange(this.value)">
+        <option value="auto" ${!d.totalRounds||d.totalRounds==='auto'?'selected':''}>Padrão (calculado pelo nº de jogadores)</option>
+        <option value="3"  ${d.totalRounds===3?'selected':''}>3 rodadas  (4–8 jogadores)</option>
+        <option value="4"  ${d.totalRounds===4?'selected':''}>4 rodadas  (9–16 jogadores)</option>
+        <option value="5"  ${d.totalRounds===5?'selected':''}>5 rodadas  (17–32 jogadores)</option>
+        <option value="6"  ${d.totalRounds===6?'selected':''}>6 rodadas  (33–64 jogadores)</option>
+        <option value="7"  ${d.totalRounds===7?'selected':''}>7 rodadas  (65–128 jogadores)</option>
+        <option value="8"  ${d.totalRounds===8?'selected':''}>8 rodadas  (129+ jogadores)</option>
+        <option value="custom" ${d.totalRounds==='custom'?'selected':''}>Personalizado</option>
+      </select>
+      ${d.totalRounds==='custom'?'<input type="number" id="ct-rounds-custom" min="3" max="15" value="${d.customRounds||3}" style="margin-top:6px" placeholder="Mínimo 3">':''}
+    </div>
     <div class="f"><label>Top Cut</label><select id="ct-cut">
       <option value="0" ${(d.topCutSize||0)===0?'selected':''}>Sem top cut</option>
       <option value="4" ${(d.topCutSize||0)===4?'selected':''}>Top 4</option>
       <option value="8" ${(d.topCutSize||0)===8?'selected':''}>Top 8</option>
       <option value="16"${(d.topCutSize||0)===16?'selected':''}>Top 16</option>
     </select></div>
+  </div>
+  <div class="well small muted mt4" style="padding:8px 12px">
+    <i class="ti ti-info-circle"></i>
+    Mínimo: <strong>4 jogadores</strong> e <strong>3 rodadas</strong>.
+    No modo Padrão, o nº de rodadas é definido automaticamente ao iniciar o torneio com base no total de jogadores.
   </div>
   <div class="g2">
     <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="ct-timer" min="10" max="90" value="${d.timerMinutes||50}"></div>
@@ -388,6 +406,22 @@ function renderCreateTour() {
   <i class="ti ti-player-play"></i> Criar e registrar jogadores
 </button>
 </div>`;
+}
+
+function onCTRoundsChange(val) {
+  G._ctd = G._ctd || {};
+  G._ctd.totalRounds = val === 'auto' ? 'auto' : val === 'custom' ? 'custom' : Number(val);
+  // Re-render to show/hide custom input
+  if (val === 'custom') {
+    const existing = document.getElementById('ct-rounds-custom');
+    if (!existing) {
+      const sel = document.getElementById('ct-rounds');
+      const inp = document.createElement('input');
+      inp.type='number'; inp.id='ct-rounds-custom'; inp.min=3; inp.max=15; inp.value=3;
+      inp.style.marginTop='6px'; inp.placeholder='Mínimo 3';
+      sel.parentNode.appendChild(inp);
+    }
+  }
 }
 
 function setCTMode(mode) {
@@ -1236,7 +1270,12 @@ function createTour() {
     status: 'registration',
     players:[], rounds:[], currentRound:0, topBracket:null,
     settings: {
-      totalRounds: Number(document.getElementById('ct-rounds')?.value)||4,
+      totalRounds: (()=>{
+        const v = document.getElementById('ct-rounds')?.value;
+        if (!v || v==='auto') return 'auto'; // resolved at startTour
+        if (v==='custom') return Math.max(3, Number(document.getElementById('ct-rounds-custom')?.value)||3);
+        return Math.max(3, Number(v));
+      })(),
       topCutSize: Number(document.getElementById('ct-cut')?.value)||0,
       timerMinutes: Number(document.getElementById('ct-timer')?.value)||50,
       seed: document.getElementById('ct-seed')?.value?.trim()||'',
@@ -1299,9 +1338,13 @@ function removeFromTour(pid) {
 }
 
 function startTour() {
-  const t=ct(); if(!t||t.players.length<2)return;
+  const t=ct(); if(!t) return;
+  if(t.players.length < 4) return notify('Mínimo de 4 jogadores para iniciar','err');
   const n=t.players.length;
-  if (!t.settings.totalRounds) t.settings.totalRounds=recRounds(n);
+  // Resolve 'auto' ou valor inválido pelo nº real de jogadores
+  if(!t.settings.totalRounds || t.settings.totalRounds==='auto' || isNaN(Number(t.settings.totalRounds)))
+    t.settings.totalRounds = recRounds(n);
+  t.settings.totalRounds = Math.max(3, Number(t.settings.totalRounds));
   if (t.settings.topCutSize===undefined) t.settings.topCutSize=recCut(n,t.settings.mode);
   const {pairings,log,seed} = generateSwiss(t);
   t.rounds.push({number:1,pairings,pairingLog:log,seed,timestamp:Date.now()});
