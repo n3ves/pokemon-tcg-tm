@@ -453,58 +453,10 @@ ${history.length === 0 ? `
   </div>
 </div>
 
-<script>
-(function(){
-  if(typeof Chart==='undefined'||!document.getElementById('pf-wr')) return;
-  const labels=${JSON.stringify(chartLabels)};
-  const wr=${JSON.stringify(chartWR)};
-  const w=${JSON.stringify(chartW)};
-  const l=${JSON.stringify(chartL)};
-  const t=${JSON.stringify(chartT)};
-  const pos=${JSON.stringify(chartPos)};
-  const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
-  const grid=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)';
-  const tick=isDark?'#9ca3af':'#6b7280';
-  const base={responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:false}},
-    scales:{x:{grid:{color:grid},ticks:{color:tick,font:{size:10},maxRotation:30,autoSkip:false}},
-            y:{grid:{color:grid},ticks:{color:tick,font:{size:10}}}}};
-
-  new Chart(document.getElementById('pf-wr'),{type:'line',
-    data:{labels,datasets:[{data:wr,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,.12)',
-      pointBackgroundColor:wr.map(v=>v>=50?'#639922':'#E24B4A'),
-      pointRadius:4,tension:.35,fill:true}]},
-    options:{...base,scales:{...base.scales,
-      y:{...base.scales.y,min:0,max:100,ticks:{...base.scales.y.ticks,callback:v=>v+'%'}}}}});
-
-  new Chart(document.getElementById('pf-wlt'),{type:'bar',
-    data:{labels,datasets:[
-      {label:'V',data:w,backgroundColor:'#639922',stack:'s'},
-      {label:'E',data:t,backgroundColor:'#BA7517',stack:'s'},
-      {label:'D',data:l,backgroundColor:'#E24B4A',stack:'s'},
-    ]},
-    options:{...base,scales:{
-      x:{...base.scales.x,stacked:true},
-      y:{...base.scales.y,stacked:true,ticks:{...base.scales.y.ticks,stepSize:1}}}}});
-
-  new Chart(document.getElementById('pf-pos'),{type:'line',
-    data:{labels,datasets:[{data:pos,borderColor:'#7F77DD',backgroundColor:'rgba(127,119,221,.1)',
-      pointBackgroundColor:pos.map(v=>v===1?'#639922':'#7F77DD'),
-      pointRadius:4,tension:.3,fill:true}]},
-    options:{...base,scales:{...base.scales,
-      y:{...base.scales.y,reverse:true,min:1,
-        ticks:{...base.scales.y.ticks,stepSize:1,callback:v=>'#'+v}}}}});
-
-  if(document.getElementById('pf-donut'))
-    new Chart(document.getElementById('pf-donut'),{type:'doughnut',
-      data:{labels:['V','D','E'],
-        datasets:[{data:[${tw},${tl},${tt}],
-          backgroundColor:['#639922','#E24B4A','#BA7517'],borderWidth:0,hoverOffset:4}]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false}},cutout:'68%'}});
-})();
-</script>
 `;
+  // Store chart data for post-render initialization
+  G._chartData = { labels:chartLabels, wr:chartWR, w:chartW, l:chartL, t:chartT,
+                   pos:chartPos, tw, tl, tt };
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1903,6 +1855,8 @@ function render() {
   </div>
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
+  // Init charts after DOM is ready (innerHTML scripts don't execute)
+  if (G.view === 'pdetail') setTimeout(initPlayerCharts, 0);
 }
 
 function renderNotif() {
@@ -2418,6 +2372,78 @@ Object.assign(window, {
 });
 
 // ── Init ─────────────────────────────────────────────────────
+
+
+function initPlayerCharts() {
+  if (typeof Chart === 'undefined' || !G._chartData) return;
+  if (!document.getElementById('pf-wr')) return;
+
+  const { labels, wr, w, l, t, pos, tw, tl, tt } = G._chartData;
+  const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+  const grid   = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)';
+  const tick   = isDark ? '#9ca3af' : '#6b7280';
+  const base   = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid:{color:grid}, ticks:{color:tick,font:{size:10},maxRotation:30,autoSkip:false} },
+      y: { grid:{color:grid}, ticks:{color:tick,font:{size:10}} }
+    }
+  };
+
+  // Destroy any existing chart instances first to avoid "canvas already in use"
+  ['pf-wr','pf-wlt','pf-pos','pf-donut'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      const existing = Chart.getChart(el);
+      if (existing) existing.destroy();
+    }
+  });
+
+  new Chart(document.getElementById('pf-wr'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: wr, borderColor:'#378ADD',
+      backgroundColor:'rgba(55,138,221,.12)',
+      pointBackgroundColor: wr.map(v=>v>=50?'#639922':'#E24B4A'),
+      pointRadius:4, tension:.35, fill:true }] },
+    options: { ...base, scales: { ...base.scales,
+      y: { ...base.scales.y, min:0, max:100,
+           ticks: { ...base.scales.y.ticks, callback: v=>v+'%' } } } }
+  });
+
+  new Chart(document.getElementById('pf-wlt'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'V', data:w, backgroundColor:'#639922', stack:'s' },
+      { label:'E', data:t, backgroundColor:'#BA7517', stack:'s' },
+      { label:'D', data:l, backgroundColor:'#E24B4A', stack:'s' },
+    ]},
+    options: { ...base, scales: {
+      x: { ...base.scales.x, stacked:true },
+      y: { ...base.scales.y, stacked:true, ticks:{...base.scales.y.ticks,stepSize:1} } } }
+  });
+
+  new Chart(document.getElementById('pf-pos'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: pos, borderColor:'#7F77DD',
+      backgroundColor:'rgba(127,119,221,.1)',
+      pointBackgroundColor: pos.map(v=>v===1?'#639922':'#7F77DD'),
+      pointRadius:4, tension:.3, fill:true }] },
+    options: { ...base, scales: { ...base.scales,
+      y: { ...base.scales.y, reverse:true, min:1,
+           ticks: { ...base.scales.y.ticks, stepSize:1, callback: v=>'#'+v } } } }
+  });
+
+  const donutEl = document.getElementById('pf-donut');
+  if (donutEl) new Chart(donutEl, {
+    type: 'doughnut',
+    data: { labels:['V','D','E'],
+      datasets: [{ data:[tw,tl,tt],
+        backgroundColor:['#639922','#E24B4A','#BA7517'], borderWidth:0, hoverOffset:4 }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}}, cutout:'68%' }
+  });
+}
 
 /* ════════════════════════════════════════════════════════
    PARTIAL LIST UPDATERS — avoid losing focus on search
