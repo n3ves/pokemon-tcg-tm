@@ -371,7 +371,7 @@ ${history.length === 0 ? `
     <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:#378ADD;display:inline-block"></span>Win rate %</span>
     </div>
-    <div style="position:relative;height:160px"><canvas id="pf-wr" role="img" aria-label="Win rate por torneio"></canvas></div>
+    <div style="position:relative;height:160px"><canvas id="pf-wr" width="400" height="160" role="img" aria-label="Win rate por torneio"></canvas></div>
   </div>
   <div class="card">
     <div class="lbl mb10">Resultados por torneio</div>
@@ -380,19 +380,19 @@ ${history.length === 0 ? `
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>D</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>E</span>
     </div>
-    <div style="position:relative;height:160px"><canvas id="pf-wlt" role="img" aria-label="Vitórias, derrotas e empates por torneio"></canvas></div>
+    <div style="position:relative;height:160px"><canvas id="pf-wlt" width="400" height="160" role="img" aria-label="Vitórias, derrotas e empates por torneio"></canvas></div>
   </div>
 </div>
 
 <div class="g2 gap16 mb16">
   <div class="card">
     <div class="lbl mb10">Posição final</div>
-    <div style="position:relative;height:160px"><canvas id="pf-pos" role="img" aria-label="Posição final em cada torneio"></canvas></div>
+    <div style="position:relative;height:160px"><canvas id="pf-pos" width="400" height="160" role="img" aria-label="Posição final em cada torneio"></canvas></div>
   </div>
   <div class="card">
     <div class="lbl mb10">Distribuição total</div>
     <div style="display:flex;align-items:center;gap:16px">
-      <div style="position:relative;height:140px;width:140px;flex-shrink:0"><canvas id="pf-donut" role="img" aria-label="Distribuição de vitórias derrotas e empates"></canvas></div>
+      <div style="position:relative;height:140px;width:140px;flex-shrink:0"><canvas id="pf-donut" width="140" height="140" role="img" aria-label="Distribuição de vitórias derrotas e empates"></canvas></div>
       <div style="flex:1">
         ${[['#639922','Vitórias',tw],['#E24B4A','Derrotas',tl],['#BA7517','Empates',tt]].map(([c,l,v])=>`
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1855,9 +1855,9 @@ function render() {
   </div>
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
-  // Init charts: use rAF to wait for paint, then rAF again for layout stability
+  // Init charts after layout is stable
   if (G.view === 'pdetail') {
-    requestAnimationFrame(() => requestAnimationFrame(initPlayerCharts));
+    setTimeout(initPlayerCharts, 100);
   }
 }
 
@@ -2387,10 +2387,11 @@ function initPlayerCharts() {
   const grid   = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)';
   const tick   = isDark ? '#9ca3af' : '#6b7280';
   const base   = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: { grid:{color:grid}, ticks:{color:tick,font:{size:10},maxRotation:30,autoSkip:false} },
+      x: { grid:{color:grid}, ticks:{color:tick,font:{size:10},maxRotation:35,autoSkip:true,maxTicksLimit:8} },
       y: { grid:{color:grid}, ticks:{color:tick,font:{size:10}} }
     }
   };
@@ -2445,6 +2446,7 @@ function initPlayerCharts() {
       datasets: [{ data:[tw,tl,tt],
         backgroundColor:['#639922','#E24B4A','#BA7517'], borderWidth:0, hoverOffset:4 }] },
     options: { responsive:true, maintainAspectRatio:false,
+      animation:{animateRotate:true},
       plugins:{legend:{display:false}}, cutout:'68%' }
   });
 }
