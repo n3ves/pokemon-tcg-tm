@@ -218,34 +218,90 @@ function notify(msg, type='info') {
 }
 
 function renderHome() {
-  const recent = [...G.tours].sort((a,b)=>b.createdAt-a.createdAt).slice(0,6);
+  const finished   = G.tours.filter(t=>t.status==='finished');
+  const active     = G.tours.filter(t=>t.status==='rounds'||t.status==='topcut');
+  const planned    = G.tours.filter(t=>t.status==='registration');
+  const recent     = [...G.tours].sort((a,b)=>(b.date||b.createdAt)>(a.date||a.createdAt)?1:-1).reverse().slice(0,6);
+  const venues     = G.venues.filter(v=>v.active!==false);
+
   return `
-<div class="mb20"><h1>Dashboard</h1><p class="muted mt4">Pokémon TCG Tournament Manager v${VER}</p></div>
-<div class="sgrid mb20">
-  <div class="sc"><div class="sv">${G.players.length}</div><div class="sl">Jogadores</div></div>
-  <div class="sc"><div class="sv">${G.tours.length}</div><div class="sl">Torneios</div></div>
-  <div class="sc"><div class="sv">${G.tours.filter(t=>t.status!=='finished'&&t.status!=='registration').length}</div><div class="sl">Ativos</div></div>
-  <div class="sc"><div class="sv">${G.tours.filter(t=>t.status==='finished').length}</div><div class="sl">Finalizados</div></div>
+<div class="mb16 fx sb2">
+  <div><h1>Dashboard</h1><p class="muted small mt4">Pokémon TCG Tournament Manager v${VER}</p></div>
+  <div class="fx gap6">
+    <button class="btn btn-p" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo torneio</button>
+    <button class="btn" onclick="importTDF()"><i class="ti ti-file-code"></i> Importar .tdf</button>
+  </div>
 </div>
+
+<!-- Stats grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+  <div class="sc" style="cursor:pointer" onclick="nav('players')">
+    <div class="sv" style="color:var(--it)">${G.players.length}</div>
+    <div class="sl">Jogadores</div>
+  </div>
+  <div class="sc" style="cursor:pointer;border-color:var(--st)" onclick="G.search='';nav('tours')">
+    <div class="sv" style="color:var(--st)">${finished.length}</div>
+    <div class="sl">Concluídos</div>
+  </div>
+  <div class="sc" style="cursor:pointer;border-color:var(--wt)" onclick="G.search='';nav('tours')">
+    <div class="sv" style="color:var(--wt)">${active.length}</div>
+    <div class="sl">Em andamento</div>
+  </div>
+  <div class="sc" style="cursor:pointer" onclick="G.search='';nav('tours')">
+    <div class="sv" style="color:var(--t2)">${planned.length}</div>
+    <div class="sl">Planejados</div>
+  </div>
+  <div class="sc" style="cursor:pointer" onclick="nav('venues')">
+    <div class="sv" style="color:var(--it)">${venues.length}</div>
+    <div class="sl">Locais</div>
+  </div>
+</div>
+
 <div class="g2 gap16">
   <div>
-    <div class="fx sb2 mb12"><h2>Torneios recentes</h2><button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-list"></i> Ver todos</button></div>
+    <div class="fx sb2 mb12">
+      <h2>Torneios recentes</h2>
+      <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-list"></i> Ver todos</button>
+    </div>
     <div class="card p0">
       ${recent.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio ainda</p></div>`:
         recent.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
-          <div style="flex:1">
-            <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-            <div class="muted small">${esc(t.city||'')}${t.mode?' · '+t.mode.toUpperCase():''} · ${t.players.length} jogadores</div>
-          </div><i class="ti ti-chevron-right muted"></i></div>`).join('')}
+          <div style="flex:1;min-width:0">
+            <div class="fx gap6 mb4">
+              <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</strong>
+              ${stbadge(t)}
+            </div>
+            <div class="muted small">
+              ${t.date?t.date+' · ':''}
+              ${t.venueId?esc(venueName(t.venueId))+' · ':''}
+              ${t.players.length} jogadores
+            </div>
+          </div>
+          <i class="ti ti-chevron-right muted"></i>
+        </div>`).join('')}
     </div>
   </div>
-  <div>
-    <div class="fx sb2 mb12"><h2>Ações rápidas</h2></div>
-    <div class="fxc">
-      <button class="btn btn-p fw jc" style="padding:12px" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo torneio</button>
-      <button class="btn fw jc" style="padding:12px" onclick="nav('players')"><i class="ti ti-users"></i> Banco de jogadores</button>
-      <button class="btn fw jc" style="padding:12px" onclick="importTour()"><i class="ti ti-upload"></i> Importar torneio (.json)</button>
+  <div class="fxc gap12">
+    <div class="card">
+      <h3 class="mb12">Ações rápidas</h3>
+      <div class="fxc gap8">
+        <button class="btn btn-p fw jc" style="padding:11px" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo torneio</button>
+        <button class="btn fw jc" style="padding:11px" onclick="nav('players')"><i class="ti ti-users"></i> Banco de jogadores</button>
+        <button class="btn fw jc" style="padding:11px" onclick="importTDF()"><i class="ti ti-file-code"></i> Importar .tdf</button>
+        <button class="btn fw jc" style="padding:11px" onclick="importTour()"><i class="ti ti-upload"></i> Importar .json</button>
+      </div>
     </div>
+    ${active.length>0?`
+    <div class="card" style="border-color:var(--wt)">
+      <div class="lbl mb8" style="color:var(--wt)"><i class="ti ti-player-play"></i> Em andamento</div>
+      ${active.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
+        <div style="flex:1">
+          <div class="fw-500">${esc(t.name)}</div>
+          <div class="muted small">Rodada ${t.currentRound}/${t.settings.totalRounds} · ${t.players.filter(p=>!p.dropped&&!p.dq).length} ativos</div>
+        </div>
+        <i class="ti ti-arrow-right muted"></i>
+      </div>`).join('')}
+    </div>`:''}
   </div>
 </div>`;
 }
@@ -449,12 +505,25 @@ function renderPDetail() {
     if(h.s.w > h.s.l) streak++; else break;
   }
 
-  // Archetypes used
+  // Archetypes used (include N/A for missing)
   const archUsed = {};
   history.forEach(h => {
-    if(h.tp.deckArchetype) archUsed[h.tp.deckArchetype]=(archUsed[h.tp.deckArchetype]||0)+1;
+    const key = h.tp.deckArchetype || 'N/A';
+    archUsed[key] = (archUsed[key]||0) + 1;
   });
   const archRanked = Object.entries(archUsed).sort((a,b)=>b[1]-a[1]);
+
+  // Group by venue
+  const byVenue = {};
+  history.forEach(h => {
+    const vname = h.t.venueId ? venueName(h.t.venueId) : 'Sem local';
+    if (!byVenue[vname]) byVenue[vname] = [];
+    byVenue[vname].push(h);
+  });
+  const venueGroups = Object.entries(byVenue).sort((a,b)=>a[0].localeCompare(b[0],'pt'));
+
+  // Warning: finished tournaments without decklist
+  const missingDeck = history.filter(h => h.t.status==='finished' && !h.tp.deckArchetype);
 
   // Chart data
   const chartLabels = history.map(h => h.name.length>12 ? h.name.slice(0,12)+'…' : h.name);
@@ -532,48 +601,104 @@ ${history.length === 0 ? `
 </div>
 `}
 
+${missingDeck.length>0?`
+<div class="well mb16" style="border:1px solid var(--wt);background:var(--wb)">
+  <div class="fx gap8">
+    <i class="ti ti-alert-triangle" style="color:var(--wt);font-size:16px;flex-shrink:0;margin-top:1px"></i>
+    <div>
+      <div style="font-size:13px;font-weight:500;color:var(--wt)">Decklists pendentes</div>
+      <div class="small mt4" style="color:var(--wt);opacity:.85">
+        ${missingDeck.map(h=>`<strong>${esc(h.name)}</strong>`).join(', ')} — torneio${missingDeck.length>1?'s':''} finalizado${missingDeck.length>1?'s':''} sem decklist registrada.
+      </div>
+    </div>
+  </div>
+</div>`:''}
+
 <div class="g2 gap16 mb16">
   <div>
     <h2 class="mb12">Histórico de torneios</h2>
-    <div class="card p0">
-    ${allTours.length===0?`<div class="empty"><p>Nenhum torneio</p></div>`:
-    [...history].reverse().map(h=>{
-      const won = h.pos===1;
-      const top = h.total>0 && h.pos <= Math.ceil(h.total*0.25);
-      return `<div class="plr" style="cursor:pointer" onclick="openTour('${h.t.id}')">
-        <div style="flex:1;min-width:0">
-          <div class="fx gap6 mb4">
-            <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.name)}</strong>
-            ${won?`<span class="badge bs"><i class="ti ti-trophy"></i> 1°</span>`:top?`<span class="badge bi">Top ${Math.ceil(h.total*0.25)}</span>`:''}
+    ${allTours.length===0?`<div class="card"><div class="empty"><p>Nenhum torneio</p></div></div>`:
+    venueGroups.map(([vname, vhist])=>`
+      <div class="lbl mb6 mt12">${esc(vname)}</div>
+      <div class="card p0 mb8">
+      ${[...vhist].reverse().map(h=>{
+        const won = h.pos===1;
+        const top = h.total>0 && h.pos<=Math.ceil(h.total*0.25);
+        const noDeck = h.t.status==='finished' && !h.tp.deckArchetype;
+        const hasList = h.tp.deckList && h.tp.deckList.trim().length>0;
+        const deckId = 'deck-'+h.t.id;
+        return `<div>
+          <div class="plr" style="cursor:pointer" onclick="openTour('${h.t.id}')">
+            <div style="flex:1;min-width:0">
+              <div class="fx gap6 mb4">
+                <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.name)}</strong>
+                ${won?`<span class="badge bs"><i class="ti ti-trophy"></i> 1°</span>`:top?`<span class="badge bi">Top ${Math.ceil(h.total*0.25)}</span>`:''}
+                ${noDeck?`<span class="badge bw" title="Sem decklist"><i class="ti ti-alert-triangle"></i></span>`:''}
+              </div>
+              <div class="muted small">
+                ${h.date?h.date+' · ':''}${h.t.rounds.length} rodadas
+                ${h.tp.deckArchetype?` · <strong>${esc(h.tp.deckArchetype)}</strong>`:''}
+              </div>
+            </div>
+            <div class="fx gap6">
+              <span class="mono" style="font-size:12px">${h.s.w}/${h.s.l}/${h.s.t}</span>
+              <span class="badge bn">#${h.pos}/${h.total}</span>
+              <span class="badge ${h.wr>=50?'bs':'bd'}" style="font-size:11px">${h.wr}%</span>
+              ${hasList?`<button class="btn btn-xs" onclick="event.stopPropagation();toggleDeckList('${deckId}')"><i class="ti ti-cards"></i></button>`:''}
+            </div>
           </div>
-          <div class="muted small">${h.date||''} · ${h.t.rounds.length} rodadas${h.tp.deckArchetype?' · '+esc(h.tp.deckArchetype):''}</div>
-        </div>
-        <div class="fx gap10">
-          <span class="mono" style="font-size:12px">${h.s.w}/${h.s.l}/${h.s.t}</span>
-          <span class="badge bn">#${h.pos}/${h.total}</span>
-          <span class="badge ${h.wr>=50?'bs':'bd'}" style="font-size:11px">${h.wr}%</span>
-        </div>
-      </div>`;
-    }).join('')}
-    </div>
+          ${hasList?`<div id="${deckId}" style="display:none;padding:10px 16px;background:var(--s2);border-top:1px solid var(--bd)">
+            <div class="lbl mb6">Decklist</div>
+            <pre style="font-size:11px;font-family:var(--mono);white-space:pre-wrap;line-height:1.6">${esc(h.tp.deckList)}</pre>
+          </div>`:''}
+        </div>`;
+      }).join('')}
+      </div>`
+    ).join('')}
   </div>
 
   <div>
-    <h2 class="mb12">Arquétipos jogados</h2>
-    <div class="card">
-    ${archRanked.length===0?`<div class="empty" style="padding:20px"><p>Nenhuma decklist registrada</p></div>`:
-    archRanked.map(([name,count],i)=>{
-      const colors=['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
-      const color = colors[i%colors.length];
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bd)">
-        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
-        <span style="flex:1;font-size:13px">${esc(name)}</span>
-        <div style="width:80px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden">
-          <div style="width:${Math.round(count/archRanked[0][1]*100)}%;height:100%;background:${color}"></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <h2 class="mb12">Arquétipos jogados</h2>
+        <div class="card">
+        ${archRanked.map(([name,count],i)=>{
+          const colors=['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
+          const color = name==='N/A' ? '#9ca3af' : colors[i%colors.length];
+          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--bd)">
+            <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+            <span style="flex:1;font-size:13px${name==='N/A'?';color:var(--t2);font-style:italic':''}">${esc(name)}</span>
+            <div style="width:70px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+              <div style="width:${Math.round(count/archRanked[0][1]*100)}%;height:100%;background:${color}"></div>
+            </div>
+            <span class="muted small">${count}x</span>
+          </div>`;
+        }).join('')}
         </div>
-        <span class="muted small">${count}x</span>
-      </div>`;
-    }).join('')}
+      </div>
+      ${venueGroups.length>1?`
+      <div>
+        <h2 class="mb12">Performance por local</h2>
+        <div class="card">
+        ${venueGroups.map(([vname, vhist])=>{
+          const vw = vhist.reduce((s,h)=>s+h.s.w,0);
+          const vl = vhist.reduce((s,h)=>s+h.s.l,0);
+          const vt = vhist.reduce((s,h)=>s+h.s.t,0);
+          const vgp = vw+vl+vt;
+          const vwr = vgp>0?Math.round(vw/vgp*100):0;
+          return `<div style="padding:8px 0;border-bottom:0.5px solid var(--bd)">
+            <div class="fx sb2 mb4">
+              <span style="font-size:13px;font-weight:500">${esc(vname)}</span>
+              <span class="badge ${vwr>=50?'bs':'bd'}" style="font-size:11px">${vwr}%</span>
+            </div>
+            <div class="fx gap12 muted small">
+              <span>${vhist.length} torneio${vhist.length>1?'s':''}</span>
+              <span>${vw}V ${vl}D ${vt}E</span>
+            </div>
+          </div>`;
+        }).join('')}
+        </div>
+      </div>`:''}
     </div>
   </div>
 </div>
@@ -908,6 +1033,11 @@ tours.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
   <i class="ti ti-chevron-right muted"></i>
 </div>`).join('')}
 </div>`;
+}
+
+function toggleDeckList(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
 
 function openVenueModal(id) {
@@ -2968,7 +3098,7 @@ Object.assign(window, {
   saveSettings, clearData, reloadFromSupabase, forceSyncAll,
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
-  openEditTourModal, saveEditTour,
+  openEditTourModal, saveEditTour, toggleDeckList,
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
