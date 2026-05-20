@@ -85,20 +85,64 @@ function clearTourPlayers() {
 }
 
 /* Add player to tournament being created (before createTour) */
-function ctAddPlayer(gid) {
+function saveCTFormState() {
+  if (G.view !== 'ctour') return;
   G._ctd = G._ctd || {};
+  G._ctd.name         = document.getElementById('ct-name')?.value         ?? G._ctd.name         ?? '';
+  G._ctd.city         = document.getElementById('ct-city')?.value         ?? G._ctd.city         ?? '';
+  G._ctd.state        = document.getElementById('ct-state')?.value        ?? G._ctd.state        ?? '';
+  G._ctd.date         = document.getElementById('ct-date')?.value         ?? G._ctd.date         ?? '';
+  G._ctd.sanctionedId = document.getElementById('ct-sanction')?.value     ?? G._ctd.sanctionedId ?? '';
+  G._ctd.venueId      = document.getElementById('ct-venue')?.value        ?? G._ctd.venueId      ?? null;
+  G._ctd.totalRounds  = document.getElementById('ct-rounds')?.value       ?? G._ctd.totalRounds  ?? 'auto';
+  G._ctd.topCutSize   = Number(document.getElementById('ct-cut')?.value)  ?? G._ctd.topCutSize   ?? 0;
+  G._ctd.timerMinutes = Number(document.getElementById('ct-timer')?.value)?? G._ctd.timerMinutes ?? 50;
+  G._ctd.seed         = document.getElementById('ct-seed')?.value         ?? G._ctd.seed         ?? '';
+  G._ctd.separateDivisions = document.getElementById('ct-sepdiv')?.checked ?? G._ctd.separateDivisions ?? true;
+  G._ctd.standingsByDiv    = document.getElementById('ct-divst')?.checked  ?? G._ctd.standingsByDiv    ?? true;
+  G._ctd.debugMode         = document.getElementById('ct-debug')?.checked  ?? G._ctd.debugMode         ?? false;
+}
+function _refreshCTPlayerPanel() {
+  const el = document.getElementById('ct-player-panel');
+  if (!el) { render(); return; }  // fallback full render if panel not found
+  const d = G._ctd || {};
+  const players = d.players || [];
+  const count = players.length;
+  const countEl = document.getElementById('ct-pcount');
+  if (countEl) countEl.textContent = count > 0 ? count + ' selecionados' : 'opcional';
+
+  el.innerHTML = players.length === 0 ? '' : `
+    <div class="sep" style="margin:8px 0"></div>
+    <div class="lbl mb6">Selecionados</div>
+    ${players.map((p,i)=>`<div class="plr" style="padding:6px 10px">
+      <span class="mono muted" style="min-width:20px;font-size:11px">${i+1}</span>
+      <span style="flex:1;font-size:13px">${esc(p.name)}</span>
+      ${dbadge(p.division)}
+      <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
+    </div>`).join('')}`;
+
+  // Clear search box and results
+  const inp = document.getElementById('ct-pq');
+  if (inp) { inp.value = ''; }
+  const res = document.getElementById('ct-pres');
+  if (res) res.innerHTML = '';
+
+  notify((G.players.find(p=>p.id===players[players.length-1]?.gid)?.name||'Jogador') + ' adicionado','ok');
+}
+function ctAddPlayer(gid) {
+  saveCTFormState();
   G._ctd.players = G._ctd.players || [];
   const gp = G.players.find(p => p.id === gid);
   if (!gp) return;
   if (G._ctd.players.some(p => p.gid === gid)) return notify('Já adicionado','warn');
   G._ctd.players.push({ id: uid(), gid, name: gp.name, division: gp.division, dropped:false, dq:false, hadBye:false });
-  render();
+  _refreshCTPlayerPanel();
 }
 
 function ctRemovePlayer(id) {
-  if (!G._ctd) return;
+  saveCTFormState();
   G._ctd.players = (G._ctd.players||[]).filter(p => p.id !== id);
-  render();
+  _refreshCTPlayerPanel();
 }
 
 function renderCTPlayerSearch(q) {
@@ -525,13 +569,25 @@ function renderPDetail() {
   // Warning: finished tournaments without decklist
   const missingDeck = history.filter(h => h.t.status==='finished' && !h.tp.deckArchetype);
 
-  // Chart data
-  const chartLabels = history.map(h => h.name.length>12 ? h.name.slice(0,12)+'…' : h.name);
-  const chartWR     = history.map(h => h.wr);
-  const chartW      = history.map(h => h.s.w);
-  const chartL      = history.map(h => h.s.l);
-  const chartT      = history.map(h => h.s.t);
-  const chartPos    = history.map(h => h.pos);
+  // Charts:
+  // WR and WLT: grouped by venue (average per venue)
+  // Position: sorted by date (chronological)
+
+  // By venue for WR + WLT
+  const venueOrder = venueGroups.map(([vname]) => vname);
+  const chartVenueLabels = venueOrder.map(v => v.length>10 ? v.slice(0,10)+'…' : v);
+  const chartVenueWR = venueOrder.map(vname => {
+    const vh = byVenue[vname]||[];
+    const vw=vh.reduce((s,h)=>s+h.s.w,0), vl=vh.reduce((s,h)=>s+h.s.l,0), vt=vh.reduce((s,h)=>s+h.s.t,0);
+    const vgp=vw+vl+vt; return vgp>0?Math.round(vw/vgp*100):0;
+  });
+  const chartVenueW = venueOrder.map(vname => (byVenue[vname]||[]).reduce((s,h)=>s+h.s.w,0));
+  const chartVenueL = venueOrder.map(vname => (byVenue[vname]||[]).reduce((s,h)=>s+h.s.l,0));
+  const chartVenueT = venueOrder.map(vname => (byVenue[vname]||[]).reduce((s,h)=>s+h.s.t,0));
+
+  // By date for position (chronological = history is already asc)
+  const chartDateLabels = history.map(h => (h.date||h.t.date||'').slice(5)||h.name.slice(0,8));
+  const chartPos        = history.map(h => h.pos);
 
   return `
 <div class="fx gap12 mb16">
@@ -561,27 +617,27 @@ ${history.length === 0 ? `
 ` : `
 <div class="g2 gap16 mb16">
   <div class="card">
-    <div class="lbl mb10">Win rate por torneio</div>
+    <div class="lbl mb10">Win rate por loja</div>
     <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:#378ADD;display:inline-block"></span>Win rate %</span>
     </div>
-    ${svgLineChart(chartWR,{w:440,h:150,min:0,max:100,color:"#378ADD",labels:chartLabels,formatY:v=>v+"%",pointColor:(v)=>v>=50?"#639922":"#E24B4A"})}
+    ${svgLineChart(chartVenueWR,{w:440,h:150,min:0,max:100,color:"#378ADD",labels:chartVenueLabels,formatY:v=>v+"%",pointColor:(v)=>v>=50?"#639922":"#E24B4A"})}
   </div>
   <div class="card">
-    <div class="lbl mb10">Resultados por torneio</div>
+    <div class="lbl mb10">Resultados por loja</div>
     <div style="display:flex;gap:12px;font-size:11px;color:var(--t2);margin-bottom:8px">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#639922;display:inline-block"></span>V</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>D</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>E</span>
     </div>
-    ${svgBarChart([{data:chartW,color:"#639922"},{data:chartT,color:"#BA7517"},{data:chartL,color:"#E24B4A"}],chartLabels,{w:440,h:150})}
+    ${svgBarChart([{data:chartVenueW,color:"#639922"},{data:chartVenueT,color:"#BA7517"},{data:chartVenueL,color:"#E24B4A"}],chartVenueLabels,{w:440,h:150})}
   </div>
 </div>
 
 <div class="g2 gap16 mb16">
   <div class="card">
-    <div class="lbl mb10">Posição final</div>
-    ${svgLineChart(chartPos.map(v=>-v),{w:440,h:150,min:-Math.max(...chartPos,4),max:-1,color:"#7F77DD",labels:chartLabels,formatY:v=>"#"+(-v),pointColor:(_,i)=>chartPos[i]===1?"#639922":"#7F77DD"})}
+    <div class="lbl mb10">Posição final (por data)</div>
+    ${svgLineChart(chartPos.map(v=>-v),{w:440,h:150,min:-Math.max(...chartPos,4),max:-1,color:"#7F77DD",labels:chartDateLabels,formatY:v=>"#"+(-v),pointColor:(_,i)=>chartPos[i]===1?"#639922":"#7F77DD"})}
   </div>
   <div class="card">
     <div class="lbl mb10">Distribuição total</div>
@@ -660,7 +716,7 @@ ${missingDeck.length>0?`
   <div>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
-        <h2 class="mb12">Arquétipos jogados</h2>
+        <h2 class="mb12">Decks jogados</h2>
         <div class="card">
         ${archRanked.map(([name,count],i)=>{
           const colors=['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
@@ -705,8 +761,8 @@ ${missingDeck.length>0?`
 
 `;
   // Store chart data for post-render initialization
-  G._chartData = { labels:chartLabels, wr:chartWR, w:chartW, l:chartL, t:chartT,
-                   pos:chartPos, tw, tl, tt };
+  G._chartData = { labels:chartVenueLabels, wr:chartVenueWR, w:chartVenueW, l:chartVenueL, t:chartVenueT,
+                   pos:chartPos, dateLabels:chartDateLabels, tw, tl, tt };
 }
 
 /* ════════════════════════════════════════════════════════
@@ -756,20 +812,20 @@ function renderGlobalDecklists() {
     <div class="muted small">${total} registros em ${G.tours.filter(t=>t.players.some(p=>p.deckArchetype)).length} torneios</div>
   </div>
   <button class="btn btn-p" onclick="openArchModal(null)">
-    <i class="ti ti-plus"></i> Novo arquétipo
+    <i class="ti ti-plus"></i> Novo deck
   </button>
 </div>
 
 <div class="sw mb16">
   <i class="ti ti-search"></i>
-  <input id="decks-search" placeholder="Buscar arquétipo..." value="${esc(G.search)}" oninput="updateDecksList(this.value)">
+  <input id="decks-search" placeholder="Buscar deck..." value="${esc(G.search)}" oninput="updateDecksList(this.value)">
 </div>
 
 ${filtered.length === 0 ? `
 <div class="card mb16">
   <div class="empty">
     <i class="ti ti-cards"></i>
-    <p>${total===0?'Nenhuma decklist registrada ainda. Registre decklists dentro de um torneio na aba Decklists.':'Nenhum resultado para a busca.'}</p>
+    <p>${total===0?'Nenhum deck registrado ainda. Registre decks dentro de um torneio na aba Decklists.':'Nenhum resultado para a busca.'}</p>
   </div>
 </div>` : `
 
@@ -778,7 +834,7 @@ ${filtered.length === 0 ? `
   <div class="card p0 mb16">
     <table>
       <thead><tr>
-        <th>#</th><th>Arquétipo</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th>
+        <th>#</th><th>Deck</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th>
       </tr></thead>
       <tbody id="decks-table-body">
       ${filtered.map((a,i) => {
@@ -814,7 +870,7 @@ ${filtered.length === 0 ? `
 
   <div style="display:flex;flex-direction:column;gap:12px">
     <div class="card">
-      <div class="lbl mb10">Top arquétipos</div>
+      <div class="lbl mb10">Top decks</div>
       ${filtered.slice(0,8).map((a,i) => {
         const color = archColors[archs.indexOf(a) % archColors.length];
         const maxC = filtered[0]?.count||1;
@@ -830,10 +886,10 @@ ${filtered.length === 0 ? `
     </div>
 
     <div class="card">
-      <div class="lbl mb10">Cadastrar arquétipo</div>
-      <p class="muted small mb10">Pré-cadastre arquétipos para facilitar o registro nos torneios.</p>
+      <div class="lbl mb10">Cadastrar deck</div>
+      <p class="muted small mb10">Pré-cadastre decks para facilitar o registro nos torneios.</p>
       <div class="f mb8">
-        <label>Nome do arquétipo</label>
+        <label>Nome do deck</label>
         <input id="ga-name" list="ga-list" placeholder="ex: Charizard ex">
         <datalist id="ga-list">
           ${allUsed.map(a=>`<option value="${esc(a)}">`).join('')}
@@ -850,11 +906,11 @@ ${filtered.length === 0 ? `
 
 function addGlobalArchetype() {
   const name = document.getElementById('ga-name')?.value?.trim();
-  if (!name) return notify('Informe o nome do arquétipo','warn');
+  if (!name) return notify('Informe o nome do deck','warn');
   // Store in global settings as pre-registered archetypes
   G.settings.archetypes = G.settings.archetypes || [];
   if (G.settings.archetypes.some(a => norm(a)===norm(name)))
-    return notify('Arquétipo já existe','warn');
+    return notify('Deck já existe','warn');
   G.settings.archetypes.push(name);
   G.settings.archetypes.sort((a,b) => a.localeCompare(b,'pt'));
   DB.save(SK.ST, G.settings);
@@ -871,7 +927,7 @@ function renderArchModal() {
   const m = G.modal;
   const isEdit = !!m.name;
   return `
-<div class="mtitle"><i class="ti ti-cards"></i> ${isEdit?'Editar arquétipo':'Novo arquétipo'}</div>
+<div class="mtitle"><i class="ti ti-cards"></i> ${isEdit?'Editar deck':'Novo deck'}</div>
 <div class="f mb16">
   <label>Nome</label>
   <input id="arch-name" value="${esc(m.name)}" placeholder="ex: Charizard ex, Gardevoir ex...">
@@ -1125,7 +1181,7 @@ function renderTours() {
   const q = norm(G.search);
   const list = G.tours
     .filter(t => !q || norm(t.name).includes(q) || norm(t.city||'').includes(q))
-    .sort((a,b) => b.createdAt-a.createdAt);
+    .sort((a,b) => { const sortByDate = (a,b) => { const da = a.date ? new Date(a.date).getTime() : a.createdAt; const db = b.date ? new Date(b.date).getTime() : b.createdAt; return db - da; };; return sortByDate(a,b); });
   return `
 <div class="fx sb2 mb16"><h1>Torneios</h1>
   <div class="fx gap6">
@@ -1234,8 +1290,9 @@ function renderCreateTour() {
     <button class="btn btn-sm" onclick="openPModal(null,'ctour')"><i class="ti ti-plus"></i> Novo</button>
   </div>
   <div id="ct-pres"></div>
+  <div id="ct-player-panel">
   ${(d.players||[]).length > 0 ? `
-  <div class="sep"></div>
+  <div class="sep" style="margin:8px 0"></div>
   <div class="lbl mb6">Selecionados</div>
   ${(d.players||[]).map((p,i)=>`<div class="plr" style="padding:6px 10px">
     <span class="mono muted" style="min-width:20px;font-size:11px">${i+1}</span>
@@ -1243,6 +1300,7 @@ function renderCreateTour() {
     ${dbadge(p.division)}
     <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
   </div>`).join('')}` : ''}
+  </div>
 </div>
 <button class="btn btn-p fw jc" style="padding:12px" onclick="createTour()">
   <i class="ti ti-player-play"></i> Criar torneio
@@ -1820,7 +1878,7 @@ function renderDecklists(t) {
         </select>
       </div>
       <div class="f mb12">
-        <label>Arquétipo</label>
+        <label>Deck</label>
         <input id="deck-quick-arch" list="arch-datalist" placeholder="Charizard ex, Gardevoir ex...">
         <datalist id="arch-datalist">
           ${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}
@@ -1887,7 +1945,7 @@ function saveDeckQuick() {
   const custom= document.getElementById('deck-quick-arch-custom')?.value?.trim();
   const arch  = custom || sel;
   if (!pid)  return notify('Selecione um jogador','warn');
-  if (!arch) return notify('Selecione ou digite o arquétipo','warn');
+  if (!arch) return notify('Selecione ou digite o deck','warn');
   mtour(t => { t.players = t.players.map(p => p.id===pid ? {...p, deckArchetype:arch} : p); });
   document.getElementById('deck-quick-arch').value = '';
   document.getElementById('deck-quick-player').value = '';
@@ -1928,7 +1986,7 @@ ${!m.pid ? `
   </select>
 </div>` : `<input type="hidden" id="dm-player" value="${m.pid}">`}
 <div class="f mb12">
-  <label>Arquétipo</label>
+  <label>Deck</label>
   <input id="dm-arch" list="dm-arch-list" value="${esc(m.arch)}"
     placeholder="Charizard ex, Gardevoir ex...">
   <datalist id="dm-arch-list">
@@ -3098,7 +3156,7 @@ Object.assign(window, {
   saveSettings, clearData, reloadFromSupabase, forceSyncAll,
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
-  openEditTourModal, saveEditTour, toggleDeckList,
+  openEditTourModal, saveEditTour, toggleDeckList, saveCTFormState, _refreshCTPlayerPanel,
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
@@ -3155,7 +3213,7 @@ function updateToursList(q) {
   const nq = norm(q);
   const list = G.tours
     .filter(t => !nq || norm(t.name).includes(nq) || norm(t.city||'').includes(nq))
-    .sort((a,b) => b.createdAt - a.createdAt);
+    .sort((a,b) => { const sortByDate = (a,b) => { const da = a.date ? new Date(a.date).getTime() : a.createdAt; const db = b.date ? new Date(b.date).getTime() : b.createdAt; return db - da; };; return sortByDate(a,b); });
   const el = document.getElementById('tours-list');
   if (!el) return;
   el.innerHTML = list.length===0
