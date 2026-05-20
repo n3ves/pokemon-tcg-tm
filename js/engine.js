@@ -891,10 +891,11 @@ function generateTDF(t) {
   const tpById = new Map(t.players.map(p => [p.id, p]));
 
   // ── Organizer ────────────────────────────────────────────
-  // Organizer: prefer tournament-level, fallback to global settings
-  const orgName    = t.settings.organizerName    || G.settings.organizerName    || '';
-  const orgPopId   = t.settings.organizerPopId   || G.settings.organizerPopId   || '';
-  const orgCountry = t.settings.organizerCountry || G.settings.organizerCountry || 'Brazil';
+  // Organizer: comes from the venue linked to this tournament
+  const venue      = G.venues?.find(v => v.id === t.venueId);
+  const orgName    = venue?.organizerName  || t.settings.organizerName  || '';
+  const orgPopId   = venue?.organizerPopId || t.settings.organizerPopId || '';
+  const orgCountry = t.settings.organizerCountry || 'Brazil';
 
   // ── Determine tournament-level stage ────────────────────
   const tStage = t.status === 'finished' ? 5 : t.status === 'rounds' ? 3 : 1;

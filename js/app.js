@@ -878,6 +878,7 @@ function renderVenueDetail() {
       v.zip      && ['CEP',       esc(v.zip)],
       v.responsible && ['Responsável', esc(v.responsible)],
       v.contact  && ['Contato',   esc(v.contact)],
+      v.organizerName  && ['Organizer', esc(v.organizerName) + (v.organizerPopId?' <span class="mono muted">ID: '+esc(v.organizerPopId)+'</span>':'')],
       v.notes    && ['Observações',esc(v.notes)],
     ].filter(Boolean).map(([k,vv])=>`<tr><td class="muted" style="width:40%;padding:4px 0">${k}</td><td style="padding:4px 0">${vv}</td></tr>`).join('')}</table>
   </div>
@@ -925,6 +926,13 @@ function renderVenueModal() {
   <div class="f"><label>CEP</label><input id="vm-zip" value="${esc(v?.zip||'')}"></div>
   <div class="f"><label>Responsável</label><input id="vm-resp" value="${esc(v?.responsible||'')}"></div>
 </div>
+<div class="sep"></div>
+<div class="lbl mb8">Organizer (TDF)</div>
+<p class="muted small mb10">Informações que aparecem no arquivo .tdf exportado para a Pokémon.</p>
+<div class="g2">
+  <div class="f"><label>Nome do organizador</label><input id="vm-org-name" value="${esc(v?.organizerName||'')}" placeholder="Nome completo"></div>
+  <div class="f"><label>Player ID (popid)</label><input id="vm-org-popid" value="${esc(v?.organizerPopId||'')}" placeholder="ex: 3450514"></div>
+</div>
 <div class="g2">
   <div class="f"><label>Contato</label><input id="vm-contact" value="${esc(v?.contact||'')}" placeholder="e-mail ou telefone"></div>
   <div class="f" style="justify-content:flex-end"><label class="fx gap6 mt4" style="cursor:pointer">
@@ -952,8 +960,10 @@ async function saveVenueModal(id) {
     zip:         document.getElementById('vm-zip')?.value?.trim()||null,
     responsible: document.getElementById('vm-resp')?.value?.trim()||null,
     contact:     document.getElementById('vm-contact')?.value?.trim()||null,
-    notes:       document.getElementById('vm-notes')?.value?.trim()||null,
-    active:      document.getElementById('vm-active')?.checked ?? true,
+    notes:        document.getElementById('vm-notes')?.value?.trim()||null,
+    active:       document.getElementById('vm-active')?.checked ?? true,
+    organizerName:  document.getElementById('vm-org-name')?.value?.trim()||null,
+    organizerPopId: document.getElementById('vm-org-popid')?.value?.trim()||null,
   };
   if (id) {
     G.venues = G.venues.map(v => v.id===id ? {...v,...data} : v);
@@ -2253,22 +2263,6 @@ function renderSettings() {
   <p class="muted small mt8">Também precisa adicionar seu domínio em: <strong>Settings → API → Allowed hosts</strong></p>
 </div>
 
-<div class="card mb16" style="border-color:var(--st)">
-  <div class="fx gap8 mb12">
-    <i class="ti ti-id-badge" style="color:var(--st);font-size:20px"></i>
-    <h3>Organizer</h3>
-  </div>
-  <p class="muted small mb12">Estas informações aparecem no arquivo <strong>.tdf</strong> exportado para o sistema da Pokémon.</p>
-  <div class="g2">
-    <div class="f"><label>Nome completo</label><input id="st-org-name" value="${esc(s.organizerName||'')}" placeholder="Nome do organizador"></div>
-    <div class="f"><label>Player ID (popid)</label><input id="st-org-popid" value="${esc(s.organizerPopId||'')}" placeholder="ex: 5036475"></div>
-  </div>
-  <div class="g2">
-    <div class="f"><label>Cidade</label><input id="st-org-city" value="${esc(s.organizerCity||'')}" placeholder="Rio de Janeiro"></div>
-    <div class="f"><label>País</label><input id="st-org-country" value="${esc(s.organizerCountry||'Brazil')}" placeholder="Brazil"></div>
-  </div>
-</div>
-
 <div class="card mb16">
   <h3 class="mb12">Padrões de torneio</h3>
   <div class="f"><label>Tempo padrão por rodada (min)</label><input type="number" id="st-timer" value="${s.timerMinutes||50}"></div>
@@ -2856,11 +2850,6 @@ function saveSettings() {
   G.settings.separateDivisions = document.getElementById('st-sepdiv')?.checked??true;
   G.settings.standingsByDiv    = document.getElementById('st-divst')?.checked??true;
   G.settings.debugMode         = document.getElementById('st-debug')?.checked||false;
-  // Organizer
-  G.settings.organizerName    = document.getElementById('st-org-name')?.value?.trim()||'';
-  G.settings.organizerPopId   = document.getElementById('st-org-popid')?.value?.trim()||'';
-  G.settings.organizerCity    = document.getElementById('st-org-city')?.value?.trim()||'';
-  G.settings.organizerCountry = document.getElementById('st-org-country')?.value?.trim()||'Brazil';
   DB.save(SK.ST, G.settings);
   notify('Salvo','ok');
 }
