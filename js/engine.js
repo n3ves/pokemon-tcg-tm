@@ -748,15 +748,20 @@ function parseTDF(xmlStr) {
     });
   }
 
-  // Try to link to global player DB by playerId or name
+  // Try to link to global player DB by playerId (exact) or name (norm)
   for (const tp of uidMap.values()) {
     const gp = G.players.find(p =>
-      (p.playerId && p.playerId === tp.playerId) ||
-      p.name.toLowerCase() === tp.name.toLowerCase()
+      (tp.playerId && p.playerId && p.playerId === tp.playerId) ||
+      norm(p.name) === norm(tp.name)
     );
     if (gp) {
-      tp.gid      = gp.id;
-      tp.division = gp.division; // respect global DB division
+      tp.gid = gp.id;
+      // Sync playerId back to global DB if it was missing
+      if (tp.playerId && !gp.playerId) {
+        gp.playerId  = tp.playerId;
+        gp.birthDate = gp.birthDate || tp.birthDate;
+      }
+      tp.division = gp.division; // pod category is applied below
     }
   }
 
@@ -1064,15 +1069,38 @@ function importTDF() {
     try {
       const t = parseTDF(xmlStr);
 
-      // Upsert global players from TDF (add to DB if not there)
-      let newPlayers = 0;
+      // Upsert global players from TDF:
+      // 1. Already linked (gid set by parseTDF) → just sync any missing fields
+      // 2. Not linked → try one more match, then create new
+      let newPlayers = 0, updatedPlayers = 0;
       for (const tp of t.players) {
-        if (tp.gid) continue; // already linked
+        if (tp.gid) {
+          // Already linked — make sure playerId is synced back
+          const gp = G.players.find(p => p.id === tp.gid);
+          if (gp && tp.playerId && !gp.playerId) {
+            gp.playerId  = tp.playerId;
+            gp.birthDate = gp.birthDate || tp.birthDate;
+            updatedPlayers++;
+          }
+          continue;
+        }
+
+        // Second attempt: match by playerId or norm(name)
         const exists = G.players.find(p =>
-          (tp.playerId && p.playerId === tp.playerId) ||
-          p.name.toLowerCase() === tp.name.toLowerCase()
+          (tp.playerId && p.playerId && p.playerId === tp.playerId) ||
+          norm(p.name) === norm(tp.name)
         );
-        if (!exists) {
+
+        if (exists) {
+          tp.gid = exists.id;
+          // Sync playerId if missing in DB
+          if (tp.playerId && !exists.playerId) {
+            exists.playerId  = tp.playerId;
+            exists.birthDate = exists.birthDate || tp.birthDate;
+            updatedPlayers++;
+          }
+        } else {
+          // Create new global player from TDF data
           const gp = {
             id:        uid(),
             createdAt: Date.now(),
@@ -1089,16 +1117,21 @@ function importTDF() {
           G.players.push(gp);
           tp.gid = gp.id;
           newPlayers++;
-        } else {
-          tp.gid = exists.id;
         }
       }
 
+      // Save players that were updated/created
+      if (newPlayers || updatedPlayers) {
+        DB.save(SK.PL, G.players);
+        SB.savePlayers(G.players).catch(()=>{});
+      }
       if (!G.tours.find(x => x.id === t.id)) G.tours.push(t);
-      saveAll();
+      saveAll(t.id);
 
-      const msg = `TDF importado: ${t.players.length} jogadores, ${t.rounds.length} rodadas` +
-                  (newPlayers ? ` (${newPlayers} adicionados ao banco)` : '');
+      const parts = [`TDF importado: ${t.players.length} jogadores, ${t.rounds.length} rodadas`];
+      if (newPlayers)     parts.push(`${newPlayers} adicionado${newPlayers!==1?'s':''} ao banco`);
+      if (updatedPlayers) parts.push(`${updatedPlayers} Player ID${updatedPlayers!==1?'s':''} sincronizado${updatedPlayers!==1?'s':''}`);
+      const msg = parts.join(' · ');
       notify(msg, 'ok');
       openTour(t.id);
     } catch(e) {
