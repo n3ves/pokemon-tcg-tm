@@ -43,9 +43,22 @@ function migrateIDs() {
     return {
       ...t,
       id: tid,
-      players: (t.players||[]).map(tp => ({
-        ...tp,
-        gid: map.get(tp.gid) || tp.gid,
+      players: (t.players||[]).map(tp => {
+        const newId = isUUID(tp.id) ? tp.id : uid();
+        if (!isUUID(tp.id)) map.set(tp.id, newId);
+        return {
+          ...tp,
+          id:  newId,
+          gid: map.get(tp.gid) || tp.gid,
+        };
+      }),
+      rounds: (t.rounds||[]).map(rnd => ({
+        ...rnd,
+        pairings: (rnd.pairings||[]).map(p => ({
+          ...p,
+          p1: map.get(p.p1) || p.p1,
+          p2: p.p2 === 'BYE' ? 'BYE' : (map.get(p.p2) || p.p2),
+        })),
       })),
     };
   });
