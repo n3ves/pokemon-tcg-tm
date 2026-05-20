@@ -1211,6 +1211,8 @@ function renderRounds(t) {
 
   </div>
   <div class="fx gap6">
+    <button class="btn btn-sm" onclick="printMatchSlips('${t.id}')"><i class="ti ti-printer"></i> Match Slips</button>
+    <button class="btn btn-sm" onclick="printPairings('${t.id}')"><i class="ti ti-layout-list"></i> Pairings</button>
     <button class="btn btn-sm" onclick="simulateRound()"><i class="ti ti-dice"></i> Simular</button>
     ${allDone?`<button class="btn btn-p" onclick="advanceRound()">
       ${isLast?(t.settings.topCutSize>0?'Ir para Top Cut':'Finalizar'):`Rodada ${t.currentRound+1}`}
@@ -1261,14 +1263,18 @@ function pairingRow(p, t) {
 
 /* ── STANDINGS ── */
 function renderStandings(t) {
+  const header = `<div class="fx sb2 mb16">
+    <h2>Standings</h2>
+    <button class="btn btn-sm" onclick="printStandings('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>
+  </div>`;
   if (t.settings.standingsByDiv && t.settings.separateDivisions) {
-    return DIVS.map(div => {
+    return header + DIVS.map(div => {
       const s = getStandings(t.players, t.rounds, div);
       if (!s.length) return '';
       return `<div class="lbl mb8">${div}</div>${standTable(s, t)}`;
     }).join('');
   }
-  return standTable(getStandings(t.players, t.rounds), t);
+  return header + standTable(getStandings(t.players, t.rounds), t);
 }
 
 function standTable(stand, t) {
