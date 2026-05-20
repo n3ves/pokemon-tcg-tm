@@ -778,9 +778,9 @@ function parseTDF(xmlStr) {
   }
 
   // ── Auto-create global players for unlinked TDF players ──
+  const _newGPs = []; // track so importTDF can save them
   for (const tp of uidMap.values()) {
     if (tp.gid) continue; // already linked
-    // Create global player now so name is always available
     const newGP = {
       id:        uid(),
       createdAt: Date.now(),
@@ -791,10 +791,9 @@ function parseTDF(xmlStr) {
       division:  tp.division,
       city:      '', state:    '', contact: '', notes: 'Importado via TDF',
     };
-    if (typeof G !== 'undefined' && G.players) {
-      G.players.push(newGP);
-    }
-    tp.gid = newGP.id;
+    if (typeof G !== 'undefined' && G.players) G.players.push(newGP);
+    tp.gid    = newGP.id;
+    _newGPs.push(newGP);
   }
 
   // ── Override division from <pods> category ───────────────
@@ -883,6 +882,7 @@ function parseTDF(xmlStr) {
   const totalRounds = rounds.length || 3;
 
   return {
+    _newGPsCount: _newGPs.length,  // players auto-created in parseTDF
     id:           uid(),
     createdAt:    Date.now(),
     name,
@@ -1154,15 +1154,21 @@ function importTDF() {
       }
 
       // Save players that were updated/created
-      if (newPlayers || updatedPlayers) {
-        DB.save(SK.PL, G.players);
-        SB.savePlayers(G.players).catch(()=>{});
+      // Count total new players (from parseTDF auto-create + importTDF loop)
+      const totalNew = (t._newGPsCount || 0) + newPlayers;
+      delete t._newGPsCount;
+
+      // Always save players — parseTDF may have created new ones
+      DB.save(SK.PL, G.players);
+      if (totalNew > 0 || updatedPlayers > 0) {
+        SB.savePlayers(G.players).catch(e => console.warn('savePlayers:', e));
       }
+
       if (!G.tours.find(x => x.id === t.id)) G.tours.push(t);
       saveAll(t.id);
 
       const parts = [`TDF importado: ${t.players.length} jogadores, ${t.rounds.length} rodadas`];
-      if (newPlayers)     parts.push(`${newPlayers} adicionado${newPlayers!==1?'s':''} ao banco`);
+      if (totalNew)       parts.push(`${totalNew} adicionado${totalNew!==1?'s':''} ao banco`);
       if (updatedPlayers) parts.push(`${updatedPlayers} Player ID${updatedPlayers!==1?'s':''} sincronizado${updatedPlayers!==1?'s':''}`);
       const msg = parts.join(' · ');
       notify(msg, 'ok');
