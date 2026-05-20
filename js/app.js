@@ -264,9 +264,9 @@ function renderPlayers() {
   </div>
 </div>
 <div class="sw"><i class="ti ti-search"></i>
-  <input placeholder="Buscar nome, nickname, ID, cidade..." value="${esc(G.search)}" oninput="G.search=this.value;render()">
+  <input id="players-search" placeholder="Buscar nome, nickname, ID, cidade..." value="${esc(G.search)}" oninput="updatePlayersList(this.value)" autofocus>
 </div>
-<div class="card p0">
+<div class="card p0" id="players-list">
 ${list.length===0?`<div class="empty"><i class="ti ti-user-off"></i><p>Nenhum jogador encontrado</p></div>`:
 list.map(p=>`<div class="plr" onclick="nav('pdetail',{pid:'${p.id}'})">
   <div class="av">${esc(initials(p.name))}</div>
@@ -560,7 +560,7 @@ function renderGlobalDecklists() {
 
 <div class="sw mb16">
   <i class="ti ti-search"></i>
-  <input placeholder="Buscar arquétipo..." value="${esc(G.search)}" oninput="G.search=this.value;render()">
+  <input id="decks-search" placeholder="Buscar arquétipo..." value="${esc(G.search)}" oninput="updateDecksList(this.value)">
 </div>
 
 ${filtered.length === 0 ? `
@@ -578,7 +578,7 @@ ${filtered.length === 0 ? `
       <thead><tr>
         <th>#</th><th>Arquétipo</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th>
       </tr></thead>
-      <tbody>
+      <tbody id="decks-table-body">
       ${filtered.map((a,i) => {
         const color = archColors[archs.indexOf(a) % archColors.length];
         const maxCount = filtered[0]?.count || 1;
@@ -726,9 +726,9 @@ function renderTours() {
   </div>
 </div>
 <div class="sw"><i class="ti ti-search"></i>
-  <input placeholder="Buscar..." value="${esc(G.search)}" oninput="G.search=this.value;render()">
+  <input id="tours-search" placeholder="Buscar..." value="${esc(G.search)}" oninput="updateToursList(this.value)">
 </div>
-<div class="card p0">
+<div class="card p0" id="tours-list">
 ${list.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio</p></div>`:
 list.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
   <div style="flex:1">
@@ -2414,9 +2414,105 @@ Object.assign(window, {
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
   openArchModal, saveArchModal, deleteArchetype, addGlobalArchetype,
+  updatePlayersList, updateToursList, updateDecksList,
 });
 
 // ── Init ─────────────────────────────────────────────────────
+
+/* ════════════════════════════════════════════════════════
+   PARTIAL LIST UPDATERS — avoid losing focus on search
+════════════════════════════════════════════════════════ */
+function _playerRow(p, i) {
+  return `<div class="plr" onclick="nav('pdetail',{pid:'${p.id}'})">
+    <div class="av">${esc(initials(p.name))}</div>
+    <div style="flex:1;min-width:0">
+      <div class="fx gap6">
+        <strong>${esc(p.name)}</strong>
+        ${p.nickname?`<span class="muted small">"${esc(p.nickname)}"</span>`:''}
+        ${dbadge(p.division)}
+      </div>
+      <div class="muted small mt4">${p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}</div>
+    </div>
+    <div class="fx gap4">
+      <button class="btn btn-xs" onclick="event.stopPropagation();openPModal('${p.id}')"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delPlayer('${p.id}')"><i class="ti ti-trash"></i></button>
+    </div>
+  </div>`;
+}
+
+function updatePlayersList(q) {
+  G.search = q;
+  const nq = norm(q);
+  const list = G.players.filter(p =>
+    !nq || norm(p.name).includes(nq) ||
+    norm(p.nickname||'').includes(nq) ||
+    norm(p.playerId||'').includes(nq) ||
+    norm(p.city||'').includes(nq)
+  );
+  const el = document.getElementById('players-list');
+  const ct = document.getElementById('players-count');
+  if (el) el.innerHTML = list.length===0
+    ? `<div class="empty"><i class="ti ti-user-off"></i><p>Nenhum jogador encontrado</p></div>`
+    : list.map((p,i) => _playerRow(p,i)).join('');
+  if (ct) ct.textContent = list.length + ' jogador' + (list.length!==1?'es':'');
+}
+
+function updateToursList(q) {
+  G.search = q;
+  const nq = norm(q);
+  const list = G.tours
+    .filter(t => !nq || norm(t.name).includes(nq) || norm(t.city||'').includes(nq))
+    .sort((a,b) => b.createdAt - a.createdAt);
+  const el = document.getElementById('tours-list');
+  if (!el) return;
+  el.innerHTML = list.length===0
+    ? `<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio</p></div>`
+    : list.map(t => `<div class="plr" onclick="openTour('${t.id}')">
+        <div style="flex:1">
+          <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
+          <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
+        </div>
+        <div class="fx gap4">
+          <button class="btn btn-xs" onclick="event.stopPropagation();exportTour('${t.id}')"><i class="ti ti-download"></i></button>
+          <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delTour('${t.id}')"><i class="ti ti-trash"></i></button>
+          <i class="ti ti-chevron-right muted"></i>
+        </div>
+      </div>`).join('');
+}
+
+function updateDecksList(q) {
+  G.search = q;
+  const archs = getGlobalArchStats();
+  const nq = norm(q);
+  const filtered = archs.filter(a => !nq || norm(a.name).includes(nq));
+  const el = document.getElementById('decks-table-body');
+  const el2 = document.getElementById('decks-top-archs');
+  const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
+  if (el) {
+    el.innerHTML = filtered.map((a,i) => {
+      const color = archColors[archs.indexOf(a) % archColors.length];
+      const maxCount = filtered[0]?.count || 1;
+      return `<tr>
+        <td class="muted mono" style="font-size:11px">${i+1}</td>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+          <span style="font-weight:500">${esc(a.name)}</span>
+        </div></td>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <div style="width:60px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+            <div style="width:${Math.round(a.count/maxCount*100)}%;height:100%;background:${color}"></div>
+          </div>
+          <span class="mono">${a.count}</span>
+        </div></td>
+        <td class="mono">${a.tournaments}</td>
+        <td class="mono">${a.players}</td>
+        <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
+        <td><span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
