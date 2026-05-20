@@ -1680,6 +1680,229 @@ ${rematches.map(r=>`<div class="badge bw mb4"><i class="ti ti-alert-triangle"></
 }
 
 /* ── EXPORT TAB ── */
+
+/* ════════════════════════════════════════════════════════
+   PRINT — Pairing Sheet, Match Slips, Standings
+════════════════════════════════════════════════════════ */
+function openPrintWindow(html, title) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #000; background: #fff; }
+  @media print {
+    body { margin: 0; }
+    .no-print { display: none !important; }
+    @page { size: A4; margin: 12mm 14mm; }
+  }
+  .no-print {
+    background: #1d4ed8; color: #fff; border: none; padding: 10px 20px;
+    font-size: 14px; cursor: pointer; border-radius: 6px; margin: 12px;
+    display: block;
+  }
+  ${html._css||''}
+</style>
+</head>
+<body>
+<button class="no-print" onclick="window.print()">🖨️ Imprimir</button>
+${html._body}
+</body>
+</html>`);
+  w.document.close();
+}
+
+function printPairings(tid) {
+  const t = G.tours.find(x=>x.id===tid)||ct(); if(!t)return;
+  const rnd = t.rounds[t.currentRound-1]; if(!rnd)return notify('Nenhuma rodada ativa','warn');
+
+  const rows = rnd.pairings
+    .filter(p=>!p.isBye)
+    .sort((a,b)=>(a.table||0)-(b.table||0))
+    .map(p => {
+      const p1 = t.players.find(x=>x.id===p.p1);
+      const p2 = t.players.find(x=>x.id===p.p2);
+      const s1 = calcStats(p.p1, t.rounds.slice(0,-1));
+      const s2 = calcStats(p.p2, t.rounds.slice(0,-1));
+      return { table:p.table, p1, p2, s1, s2 };
+    });
+
+  const byes = rnd.pairings.filter(p=>p.isBye).map(p=>{
+    const pl = t.players.find(x=>x.id===p.p1);
+    const s = calcStats(p.p1, t.rounds.slice(0,-1));
+    return { pl, s };
+  });
+
+  const body = `
+<div style="text-align:center;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #000">
+  <div style="font-size:18px;font-weight:bold">${esc(t.name)}</div>
+  <div style="font-size:13px;margin-top:4px">Rodada ${t.currentRound} de ${t.settings.totalRounds} &nbsp;·&nbsp; ${t.players.filter(p=>!p.dropped&&!p.dq).length} jogadores ativos</div>
+</div>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="padding:6px 8px;text-align:left;border:1px solid #ccc;width:60px">Mesa</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid #ccc">Jogador 1</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ccc;width:40px">Div</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ccc;width:70px">Record</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ccc;width:24px">VS</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid #ccc">Jogador 2</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ccc;width:40px">Div</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ccc;width:70px">Record</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows.map((r,i)=>`
+    <tr style="background:${i%2===0?'#fff':'#f8f8f8'}">
+      <td style="padding:7px 8px;border:1px solid #ccc;font-weight:bold;text-align:center">${r.table}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;font-weight:bold">${esc(r.p1?.name||'?')}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${r.p1?.division[0]||'?'}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${r.s1.w}/${r.s1.l}/${r.s1.t} (${r.s1.mp})</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center;color:#666">vs</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;font-weight:bold">${esc(r.p2?.name||'?')}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${r.p2?.division[0]||'?'}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${r.s2.w}/${r.s2.l}/${r.s2.t} (${r.s2.mp})</td>
+    </tr>`).join('')}
+    ${byes.map(b=>`
+    <tr style="background:#fffbeb">
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center;color:#888">—</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;font-weight:bold">${esc(b.pl?.name||'?')}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${b.pl?.division[0]||'?'}</td>
+      <td style="padding:7px 8px;border:1px solid #ccc;text-align:center">${b.s.w}/${b.s.l}/${b.s.t} (${b.s.mp})</td>
+      <td colspan="4" style="padding:7px 8px;border:1px solid #ccc;color:#888;font-style:italic">BYE — vitória automática</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+<div style="margin-top:12px;font-size:10px;color:#666;text-align:right">
+  Impresso em ${new Date().toLocaleString('pt-BR')} &nbsp;·&nbsp; Record: W/L/E (Pts)
+</div>`;
+
+  openPrintWindow({ _body: body }, `Pairings R${t.currentRound} — ${t.name}`);
+}
+
+function printMatchSlips(tid) {
+  const t = G.tours.find(x=>x.id===tid)||ct(); if(!t)return;
+  const rnd = t.rounds[t.currentRound-1]; if(!rnd)return notify('Nenhuma rodada ativa','warn');
+
+  const pairs = rnd.pairings
+    .filter(p=>!p.isBye)
+    .sort((a,b)=>(a.table||0)-(b.table||0));
+
+  const css = `
+    .slip { border: 1px solid #000; padding: 10px 12px; margin-bottom: 0; page-break-inside: avoid; }
+    .slip-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom:6px; border-bottom:1px solid #ccc; }
+    .slip-title { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; color: #555; }
+    .slip-round { font-size: 13px; font-weight: bold; }
+    .slip-player { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .slip-player:last-child { border-bottom: none; }
+    .slip-name { flex: 1; font-size: 13px; font-weight: bold; }
+    .slip-record { font-size: 11px; color: #444; white-space: nowrap; }
+    .slip-result { display: flex; gap: 6px; align-items: center; }
+    .slip-box { width: 48px; height: 24px; border: 1px solid #999; border-radius: 3px; display: inline-block; }
+    .slip-footer { margin-top: 8px; font-size: 10px; color: #888; display: flex; justify-content: space-between; }
+    .slip-init { display: flex; gap: 4px; align-items: center; font-size: 10px; }
+    .slip-init-box { width: 40px; height: 18px; border-bottom: 1px solid #000; display: inline-block; margin-left: 4px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .cut-guide { border-top: 1px dashed #bbb; margin: 0; }
+  `;
+
+  const slips = pairs.map(p => {
+    const p1 = t.players.find(x=>x.id===p.p1);
+    const p2 = t.players.find(x=>x.id===p.p2);
+    const s1 = calcStats(p.p1, t.rounds.slice(0,-1));
+    const s2 = calcStats(p.p2, t.rounds.slice(0,-1));
+    return `
+<div class="slip">
+  <div class="slip-header">
+    <div>
+      <div class="slip-title">${esc(t.name)}</div>
+      <div style="font-size:10px;color:#666">${t.date||''}</div>
+    </div>
+    <div class="slip-round">Mesa ${p.table} &nbsp;·&nbsp; Rodada ${t.currentRound}/${t.settings.totalRounds}</div>
+  </div>
+  <div class="slip-player">
+    <div style="font-size:10px;color:#888;width:16px">P1</div>
+    <div class="slip-name">${esc(p1?.name||'?')} <span style="font-size:10px;font-weight:normal;color:#666">(${p1?.division[0]||'?'})</span></div>
+    <div class="slip-record">${s1.w}/${s1.l}/${s1.t} (${s1.mp}pts)</div>
+    <div class="slip-result">
+      Resultado: <span class="slip-box"></span>
+    </div>
+  </div>
+  <div class="slip-player">
+    <div style="font-size:10px;color:#888;width:16px">P2</div>
+    <div class="slip-name">${esc(p2?.name||'?')} <span style="font-size:10px;font-weight:normal;color:#666">(${p2?.division[0]||'?'})</span></div>
+    <div class="slip-record">${s2.w}/${s2.l}/${s2.t} (${s2.mp}pts)</div>
+    <div class="slip-result">
+      Resultado: <span class="slip-box"></span>
+    </div>
+  </div>
+  <div class="slip-footer">
+    <div class="slip-init">Ass. P1:<span class="slip-init-box"></span></div>
+    <div style="font-size:9px;color:#aaa">Vencedor entrega o slip</div>
+    <div class="slip-init">Ass. P2:<span class="slip-init-box"></span></div>
+  </div>
+</div>`;
+  }).join('<div class="cut-guide"></div>');
+
+  // 2-column grid for printing
+  const body = `
+<div style="text-align:center;margin-bottom:12px;font-size:14px;font-weight:bold">
+  ${esc(t.name)} — Match Slips — Rodada ${t.currentRound}
+  <div style="font-size:10px;font-weight:normal;color:#666;margin-top:2px">Recorte nas linhas tracejadas · Vencedor entrega o slip ao organizador</div>
+</div>
+<div class="grid">${slips}</div>`;
+
+  openPrintWindow({ _body: body, _css: css }, `Match Slips R${t.currentRound} — ${t.name}`);
+}
+
+function printStandings(tid) {
+  const t = G.tours.find(x=>x.id===tid)||ct(); if(!t)return;
+  const stand = getStandings(t.players, t.rounds);
+  const cutSize = t.settings.topCutSize;
+
+  const body = `
+<div style="text-align:center;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #000">
+  <div style="font-size:18px;font-weight:bold">${esc(t.name)}</div>
+  <div style="font-size:12px;margin-top:4px">
+    Standings após Rodada ${t.currentRound} de ${t.settings.totalRounds}
+    ${cutSize>0?` · Top ${cutSize} classificado${cutSize!==1?'s':''}`:''}</div>
+</div>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="padding:6px 8px;border:1px solid #ccc;width:36px">#</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;text-align:left">Jogador</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;width:30px">Div</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;width:60px">Pts</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;width:70px">W/L/E</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;width:65px">OWP%</th>
+      <th style="padding:6px 8px;border:1px solid #ccc;width:65px">OOWP%</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${stand.map((p,i)=>`
+    ${i===cutSize&&cutSize>0?`<tr><td colspan="7" style="padding:0;border:none"><div style="height:2px;background:#dc2626;margin:2px 0"></div></td></tr>`:''}
+    <tr style="background:${i%2===0?'#fff':'#f8f8f8'}${p.dropped?';opacity:.5':''}">
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center;font-weight:bold">${i+1}</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;font-weight:${i<3?'bold':'normal'}">${esc(p.name)}${p.dropped?' (dropped)':''}</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center">${p.division[0]}</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center;font-weight:bold">${p.mp}</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center">${p.w}/${p.l}/${p.t}</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center">${(p.owp*100).toFixed(1)}%</td>
+      <td style="padding:6px 8px;border:1px solid #ccc;text-align:center">${(p.oowp*100).toFixed(1)}%</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+<div style="margin-top:10px;font-size:10px;color:#666;text-align:right">
+  Impresso em ${new Date().toLocaleString('pt-BR')}
+</div>`;
+
+  openPrintWindow({ _body: body }, `Standings — ${t.name}`);
+}
+
 function renderExport(t) {
   const canExportTDF = t.status === 'finished' || t.rounds.length > 0;
   return `
@@ -2480,6 +2703,7 @@ Object.assign(window, {
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
   openArchModal, saveArchModal, deleteArchetype, addGlobalArchetype,
+  printPairings, printMatchSlips, printStandings,
   updatePlayersList, updateToursList, updateDecksList,
 });
 
