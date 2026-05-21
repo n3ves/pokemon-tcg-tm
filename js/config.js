@@ -325,8 +325,36 @@ const SBRealtime = (function () {
     });
   }
 
+  // IDs que nós mesmos salvamos recentemente — ignora o echo do Realtime
+  var _suppressIds = {};   // id -> timestamp
+  var SUPPRESS_TTL  = 4000; // ms
+
+  function suppressId(id) {
+    if (!id) return;
+    _suppressIds[id] = Date.now();
+    // Limpa entradas antigas
+    var now = Date.now();
+    Object.keys(_suppressIds).forEach(function(k) {
+      if (now - _suppressIds[k] > SUPPRESS_TTL) delete _suppressIds[k];
+    });
+  }
+
+  function isSuppressed(id) {
+    if (!id) return false;
+    var ts = _suppressIds[id];
+    if (!ts) return false;
+    if (Date.now() - ts > SUPPRESS_TTL) { delete _suppressIds[id]; return false; }
+    return true;
+  }
+
   function applyChange(table, eventType, newRow, oldRow) {
     if (typeof G === 'undefined' || typeof render !== 'function') return;
+    var rowId = (newRow || oldRow || {}).id;
+    // Ignora o eco das nossas próprias escritas
+    if (isSuppressed(rowId)) {
+      console.log('[Realtime] skip echo', table, rowId ? rowId.slice(0,8) : '');
+      return;
+    }
     let changed = false;
 
     if (table === 'players') {
@@ -463,5 +491,7 @@ const SBRealtime = (function () {
       reconnTry = 0;
       connect();
     },
+    // Marca IDs para suprimir o eco das nossas próprias escritas
+    suppress: suppressId,
   };
 })();

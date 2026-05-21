@@ -48,6 +48,13 @@ async function syncToSupabase(tourId) {
   setSyncStatus('syncing');
   migrateIDs(); // garante que todos os IDs são UUID válidos
   try {
+    // Marca IDs para suprimir o eco do Realtime (evita render() redundante)
+    if (typeof SBRealtime !== 'undefined') {
+      G.players.forEach(p => SBRealtime.suppress(p.id));
+      const toMark = tourId ? G.tours.filter(t=>t.id===tourId) : G.tours;
+      toMark.forEach(t => SBRealtime.suppress(t.id));
+      G.venues.forEach(v => SBRealtime.suppress(v.id));
+    }
     // Save modified players
     await SB.savePlayers(G.players);
     // Save specific tournament or all
