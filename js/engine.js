@@ -250,20 +250,32 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
   if (pool.length % 2 === 1) {
     // BYE — regra 5.6.1:
     // 1. Candidatos: quem ainda não recebeu BYE
-    // 2. Entre os candidatos, pior record (menor MP)
-    // 3. Empate em MP → aleatório (RNG seeded)
-    // 4. Se todos já tiveram BYE → volta ao pior record, aleatório no empate
-    const noBye  = pool.filter(p => !p.hadBye);
-    const pool4bye = noBye.length > 0 ? noBye : pool; // fallback: todos já tiveram
-    const minMP  = Math.min(...pool4bye.map(p => p.mp));
-    const worst  = pool4bye.filter(p => p.mp === minMP);
-    // Shuffle worst group (seeded) and take first
-    const shuffledWorst = shuffle(worst, rng);
-    byePlayer = shuffledWorst[0];
+    // 2. Pior record (menor MP)
+    // 3. Empate em MP → menor OWP%
+    // 4. Empate em OWP → menor OOWP%
+    // 5. Empate em tudo → aleatório (RNG seeded)
+    // 6. Se todos já tiveram BYE → mesma lógica sem restrição de hadBye
+    const noBye    = pool.filter(p => !p.hadBye);
+    const pool4bye = noBye.length > 0 ? noBye : pool;
+    const oppMap4bye = buildOppMap(rounds);
+    // Enrich with OWP/OOWP for tiebreaking
+    const enriched = pool4bye.map(p => ({
+      ...p,
+      _owp:  owp(p.id, rounds, pool),
+      _oowp: oowp(p.id, rounds, pool),
+    }));
+    // Sort: worst first (ascending MP, then ascending OWP, then ascending OOWP)
+    enriched.sort((a,b) =>
+      a.mp    - b.mp    ||   // 1. menor MP
+      a._owp  - b._owp  ||   // 2. menor OWP%
+      a._oowp - b._oowp ||   // 3. menor OOWP%
+      rng() - 0.5             // 4. aleatório
+    );
+    byePlayer = enriched[0];
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
     const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})${byeNote}`);
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=${byePlayer.hadBye})${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────
@@ -524,20 +536,32 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
   if (pool.length % 2 === 1) {
     // BYE — regra 5.6.1:
     // 1. Candidatos: quem ainda não recebeu BYE
-    // 2. Entre os candidatos, pior record (menor MP)
-    // 3. Empate em MP → aleatório (RNG seeded)
-    // 4. Se todos já tiveram BYE → volta ao pior record, aleatório no empate
-    const noBye  = pool.filter(p => !p.hadBye);
-    const pool4bye = noBye.length > 0 ? noBye : pool; // fallback: todos já tiveram
-    const minMP  = Math.min(...pool4bye.map(p => p.mp));
-    const worst  = pool4bye.filter(p => p.mp === minMP);
-    // Shuffle worst group (seeded) and take first
-    const shuffledWorst = shuffle(worst, rng);
-    byePlayer = shuffledWorst[0];
+    // 2. Pior record (menor MP)
+    // 3. Empate em MP → menor OWP%
+    // 4. Empate em OWP → menor OOWP%
+    // 5. Empate em tudo → aleatório (RNG seeded)
+    // 6. Se todos já tiveram BYE → mesma lógica sem restrição de hadBye
+    const noBye    = pool.filter(p => !p.hadBye);
+    const pool4bye = noBye.length > 0 ? noBye : pool;
+    const oppMap4bye = buildOppMap(rounds);
+    // Enrich with OWP/OOWP for tiebreaking
+    const enriched = pool4bye.map(p => ({
+      ...p,
+      _owp:  owp(p.id, rounds, pool),
+      _oowp: oowp(p.id, rounds, pool),
+    }));
+    // Sort: worst first (ascending MP, then ascending OWP, then ascending OOWP)
+    enriched.sort((a,b) =>
+      a.mp    - b.mp    ||   // 1. menor MP
+      a._owp  - b._owp  ||   // 2. menor OWP%
+      a._oowp - b._oowp ||   // 3. menor OOWP%
+      rng() - 0.5             // 4. aleatório
+    );
+    byePlayer = enriched[0];
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
     const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, hadBye=${byePlayer.hadBye})${byeNote}`);
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=${byePlayer.hadBye})${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────

@@ -58,6 +58,7 @@ async function syncToSupabase(tourId) {
 
 const G = {
   view:'home', players:[], tours:[], settings:{}, venues:[],
+  auth: null,  // { token, user } when logged in
   tid:null, tab:'reg', vid:null,
   modal:null, notif:null,
   search:'', lastLog:[], timerIv:null,
@@ -260,6 +261,68 @@ function notify(msg, type='info') {
   // Quick partial re-render for notification
   const el = document.getElementById('notif-slot');
   if (el) el.innerHTML = renderNotif();
+}
+
+
+/* ════════════════════════════════════════════════════════
+   AUTH — login/logout, read-only guard
+════════════════════════════════════════════════════════ */
+function isLoggedIn() { return !!G.auth?.token; }
+
+function requireAuth(action) {
+  if (isLoggedIn()) return true;
+  G.modal = { type: 'login', redirect: action };
+  render();
+  return false;
+}
+
+async function doSignIn() {
+  const email = document.getElementById('login-email')?.value?.trim();
+  const pwd   = document.getElementById('login-pwd')?.value;
+  if (!email || !pwd) return notify('Preencha email e senha','warn');
+  const btn = document.getElementById('login-btn');
+  if (btn) btn.disabled = true;
+  const res = await SB.signIn(email, pwd);
+  if (btn) btn.disabled = false;
+  if (res.error || !res.access_token) {
+    notify(res.error?.message || 'Credenciais inválidas','err');
+    return;
+  }
+  G.auth = { token: res.access_token, email: res.user?.email || email };
+  localStorage.setItem('ptcg_auth', JSON.stringify(G.auth));
+  closeM();
+  notify(`Logado como ${G.auth.email}`,'ok');
+  render();
+}
+
+async function doSignOut() {
+  if (G.auth?.token) await SB.signOut(G.auth.token).catch(()=>{});
+  G.auth = null;
+  localStorage.removeItem('ptcg_auth');
+  notify('Saiu da conta');
+  render();
+}
+
+function renderLoginModal() {
+  return `
+<div class="mtitle"><i class="ti ti-lock"></i> Entrar</div>
+<p class="muted small mb16">Somente organizadores autorizados podem editar torneios.</p>
+<div class="f mb10">
+  <label>E-mail</label>
+  <input id="login-email" type="email" placeholder="seu@email.com" autofocus
+    onkeydown="if(event.key==='Enter')document.getElementById('login-pwd').focus()">
+</div>
+<div class="f mb16">
+  <label>Senha</label>
+  <input id="login-pwd" type="password" placeholder="••••••••"
+    onkeydown="if(event.key==='Enter')doSignIn()">
+</div>
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button id="login-btn" class="btn btn-p" onclick="doSignIn()">
+    <i class="ti ti-login"></i> Entrar
+  </button>
+</div>`;
 }
 
 function renderHome() {
@@ -1141,6 +1204,7 @@ ${v?`<div class="mb12"><button class="btn btn-xs btn-d" onclick="deleteVenue('${
 }
 
 async function saveVenueModal(id) {
+  if (!requireAuth()) return;
   const name = document.getElementById('vm-name')?.value?.trim();
   if (!name) return notify('Nome é obrigatório','err');
   const data = {
@@ -1170,6 +1234,7 @@ async function saveVenueModal(id) {
 }
 
 function deleteVenue(id) {
+  if (!requireAuth()) return;
   if (!confirm('Excluir este local? Os torneios vinculados perderão a referência.')) return;
   G.venues = G.venues.filter(v=>v.id!==id);
   DB.save('ptcg_venues_v3', G.venues);
@@ -1941,6 +2006,7 @@ function filterDeckList(q) {
 }
 
 function saveDeckQuick() {
+  if (!requireAuth()) return;
   const pid   = document.getElementById('deck-quick-player')?.value;
   const sel   = document.getElementById('deck-quick-arch')?.value?.trim();
   const custom= document.getElementById('deck-quick-arch-custom')?.value?.trim();
@@ -1961,6 +2027,7 @@ function openDeckModal(pid) {
 }
 
 function saveDeckModal() {
+  if (!requireAuth()) return;
   const pid  = G.modal?.pid;
   const arch = document.getElementById('dm-arch')?.value?.trim()||'';
   const list = document.getElementById('dm-list')?.value?.trim()||'';
@@ -2557,6 +2624,7 @@ function renderModal() {
 </div>`;
   }
 
+  if (m.type === 'login') { body = renderLoginModal(); maxW = '360px'; }
   if (m.type === 'venue') { body = renderVenueModal(); }
   if (m.type === 'arch') { body = renderArchModal(); }
   if (m.type === 'deck') { body = renderDeckModal(); }
@@ -2692,6 +2760,7 @@ function savePlayer(id, addToTourId) {
 }
 
 function delPlayer(id) {
+  if (!requireAuth()) return;
   if (!confirm('Excluir jogador?')) return;
   G.players = G.players.filter(p=>p.id!==id);
   DB.save(SK.PL, G.players);
@@ -2783,6 +2852,7 @@ function importPlayersTOM() {
 }
 
 function createTour() {
+  if (!requireAuth()) return;
   const name = document.getElementById('ct-name')?.value?.trim();
   if (!name) return notify('Nome é obrigatório','err');
   const d = G._ctd||{};
@@ -2831,6 +2901,7 @@ function openTour(id) {
 }
 
 function delTour(id) {
+  if (!requireAuth()) return;
   if (!confirm('Excluir torneio?')) return;
   G.tours = G.tours.filter(t=>t.id!==id);
   DB.save(SK.TN, G.tours);
@@ -2873,6 +2944,7 @@ function removeFromTour(pid) {
 }
 
 function startTour() {
+  if (!requireAuth()) return;
   const t=ct(); if(!t) return;
   if(t.players.length < 4) return notify('Mínimo de 4 jogadores para iniciar','err');
   const n=t.players.length;
@@ -2889,6 +2961,7 @@ function startTour() {
 }
 
 function setRes(pid, result) {
+  if (!requireAuth()) return;
   mtour(t=>{
     const rnd=t.rounds[t.currentRound-1]; if(!rnd)return;
     rnd.pairings=rnd.pairings.map(p=>p.id===pid?{...p,result}:p);
@@ -2913,11 +2986,13 @@ function saveJudge(pid) {
 }
 
 function dropP(pid) {
+  if (!requireAuth()) return;
   if(!confirm('Confirmar drop?'))return;
   mtour(t=>{ t.players=t.players.map(p=>p.id===pid?{...p,dropped:true}:p); });
 }
 
 function advanceRound() {
+  if (!requireAuth()) return;
   const t=ct(); if(!t)return;
   const rnd=t.rounds[t.currentRound-1];
   if(!rnd||!rnd.pairings.every(p=>p.result!==null)) return notify('Lance todos os resultados primeiro','warn');
@@ -3158,6 +3233,7 @@ Object.assign(window, {
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
   openEditTourModal, saveEditTour, toggleDeckList, saveCTFormState, _refreshCTPlayerPanel,
+  isLoggedIn, requireAuth, doSignIn, doSignOut,
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
   openDeckModal, saveDeckModal, saveDeckQuick, clearDeck, filterDeckList,
@@ -3278,6 +3354,11 @@ function loadOffline() {
 }
 
 async function init() {
+  // Restore auth session from localStorage
+  try {
+    const saved = localStorage.getItem('ptcg_auth');
+    if (saved) G.auth = JSON.parse(saved);
+  } catch(e) { G.auth = null; }
   G.loading = true;
   render(); // show spinner
 

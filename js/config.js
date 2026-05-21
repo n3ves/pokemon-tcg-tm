@@ -155,6 +155,22 @@ const SB = {
   savePlayer:     p   => sbFetch('POST','players',SB.pRow(p)),
   deletePlayer:   id  => sbFetch('DELETE','players',null,`?id=eq.${id}`),
 
+  // ── Auth ─────────────────────────────────────────────────
+  signIn: (email, password) => fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'apikey': SB_KEY },
+    body: JSON.stringify({ email, password }),
+  }).then(r => r.json()),
+
+  signOut: (token) => fetch(`${SB_URL}/auth/v1/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` },
+  }),
+
+  getUser: (token) => fetch(`${SB_URL}/auth/v1/user`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` },
+  }).then(r => r.json()),
+
   loadVenues:    ()  => sbFetch('GET','venues',null,'?order=name.asc'),
   saveVenue:     v   => sbFetch('POST','venues',v),
   deleteVenue:   id  => sbFetch('DELETE','venues',null,`?id=eq.${id}`),
