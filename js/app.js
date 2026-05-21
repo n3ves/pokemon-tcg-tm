@@ -386,6 +386,7 @@ function renderHome() {
   </div>
 </div>
 
+${renderCountdownCard()}
 <div class="g2 gap16">
   <div>
     <div class="fx sb2 mb12" style="align-items:flex-start">
@@ -1702,6 +1703,8 @@ function render() {
     { icon:'ti-trophy', label:'Torneios',   view:'tours' },
     { icon:'ti-cards',  label:'Decklists',  view:'decklists' },
     { icon:'ti-building-store', label:'Locais', view:'venues' },
+    { icon:'ti-calendar-month', label:'Temporadas', view:'seasons' },
+    { icon:'ti-medal',  label:'Ranking', view:'ranking' },
     null,
     { icon:'ti-settings',label:'Config.',   view:'settings' },
   ];
@@ -1724,6 +1727,8 @@ function render() {
   else if (G.view==='vdetail')     content = renderVenueDetail();
   else if (G.view==='ctour')   content = renderCreateTour();
   else if (G.view==='tournament') content = renderTour();
+  else if (G.view==='seasons')  content = renderSeasons();
+  else if (G.view==='ranking')   content = renderRanking();
   else if (G.view==='settings') content = renderSettings();
 
 
@@ -2916,6 +2921,7 @@ function renderTour() {
   ${stbadge(t)}
   <span class="badge bn">${t.players.length} jog.</span>
   ${t.venueId?`<span class="badge bn"><i class="ti ti-building-store"></i> ${esc(venueName(t.venueId))}</span>`:''}
+  <button class="btn btn-xs" onclick="G.modal={type:'edit-tour'};render()" title="Editar torneio"><i class="ti ti-edit"></i></button>
   ${t.status==='rounds'?renderTimerBlock(t):''}
 </div>
 <div class="tabs">
@@ -3187,6 +3193,351 @@ function renderFinished(t) {
   <div class="sc"><div class="sv">${esc(t.city||'—')}</div><div class="sl">Cidade</div></div>
 </div>
 ${standTable(stand, t)}`;
+}
+
+
+/* ════════════════════════════════════════════════════════
+   DECKLISTS TAB (torneio)
+════════════════════════════════════════════════════════ */
+function renderDecklists(t) {
+  const allArchs = getAllArchetypes();
+  const archCount = {};
+  t.players.forEach(p => {
+    if (p.deckArchetype) archCount[p.deckArchetype] = (archCount[p.deckArchetype]||0) + 1;
+  });
+  const total     = t.players.length;
+  const withDeck  = t.players.filter(p=>p.deckArchetype).length;
+  const withList  = t.players.filter(p=>p.deckList).length;
+  const pending   = t.players.filter(p=>!p.deckArchetype);
+  const archColors= ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922'];
+  const archs     = Object.entries(archCount).sort((a,b)=>b[1]-a[1]);
+  const colorMap  = {};
+  archs.forEach(([name],i)=>{ colorMap[name]=archColors[i%archColors.length]; });
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h2 class="mb4">Decklists</h2>
+    <div class="fx gap6">
+      <span class="badge bs">${withDeck}/${total} com deck</span>
+      ${withList>0?`<span class="badge bn">${withList} com lista completa</span>`:''}
+      ${pending.length>0?`<span class="badge bw">${pending.length} pendente${pending.length>1?'s':''}</span>`:''}
+    </div>
+  </div>
+  <div class="fx gap6">
+    <button class="btn btn-p btn-sm" onclick="openDeckModal(null)"><i class="ti ti-plus"></i> Registrar</button>
+  </div>
+</div>
+
+${pending.length>0?`
+<div class="well mb16" style="border:1px solid var(--wt)">
+  <div class="fx gap8">
+    <i class="ti ti-alert-triangle" style="color:var(--wt);flex-shrink:0"></i>
+    <div>
+      <div style="font-size:13px;font-weight:500;color:var(--wt)">Sem decklist: ${pending.map(p=>`<strong>${esc(p.name)}</strong>`).join(', ')}</div>
+    </div>
+  </div>
+</div>`:''}
+
+<div class="g2 gap16">
+  <div>
+    <div class="sw mb12">
+      <i class="ti ti-search"></i>
+      <input placeholder="Buscar jogador ou deck..." oninput="filterDeckList(this.value)">
+    </div>
+    <div class="card p0" id="deck-player-list">
+      ${renderDeckPlayerList(t, '')}
+    </div>
+  </div>
+  <div>
+    <div class="card mb12">
+      <h3 class="mb12">Meta do torneio</h3>
+      ${archs.length===0?`<div class="empty" style="padding:16px"><p>Nenhum deck registrado</p></div>`
+        :archs.map(([name,count])=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--bd)">
+          <span style="width:10px;height:10px;border-radius:2px;background:${colorMap[name]||'#888'};flex-shrink:0"></span>
+          <span style="flex:1;font-size:13px">${esc(name)}</span>
+          <div style="width:70px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+            <div style="width:${Math.round(count/archs[0][1]*100)}%;height:100%;background:${colorMap[name]||'#888'}"></div>
+          </div>
+          <span class="muted small" style="min-width:40px;text-align:right">${count}x (${Math.round(count/total*100)}%)</span>
+          <button class="btn btn-xs" onclick="openArchModal('${esc(name)}')"><i class="ti ti-edit"></i></button>
+        </div>`).join('')}
+    </div>
+    ${allArchs.length>0?`
+    <div class="card">
+      <h3 class="mb8">Cadastro rápido</h3>
+      <div class="g2 mb8">
+        <div class="f mb0"><label>Jogador</label>
+          <select id="deck-quick-player">
+            <option value="">Selecionar...</option>
+            ${t.players.map(p=>`<option value="${p.id}">${esc(p.name)} ${p.deckArchetype?'✓':''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="f mb0"><label>Deck</label>
+          <input id="deck-quick-arch" list="dq-list" placeholder="Deck...">
+          <datalist id="dq-list">${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
+        </div>
+      </div>
+      <button class="btn btn-s fw jc" onclick="saveDeckQuick()"><i class="ti ti-check"></i> Salvar</button>
+    </div>`:''}
+  </div>
+</div>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   EDITAR TORNEIO
+════════════════════════════════════════════════════════ */
+function renderEditTourModal() {
+  const t = ct(); if (!t) return '';
+  return `
+<div class="mtitle"><i class="ti ti-edit"></i> Editar torneio</div>
+<div class="f"><label>Nome *</label><input id="et-name" value="${esc(t.name)}"></div>
+<div class="g2">
+  <div class="f"><label>Cidade</label><input id="et-city" value="${esc(t.city||'')}"></div>
+  <div class="f"><label>Estado</label><input id="et-state" value="${esc(t.state||'')}"></div>
+</div>
+<div class="f"><label>Data do evento</label><input type="date" id="et-date" value="${t.date||''}"></div>
+<div class="f"><label>ID Sancionada</label><input id="et-sanction" value="${esc(t.sanctionedId||'')}" style="font-family:var(--mono)"></div>
+<div class="f"><label>Local</label>
+  <select id="et-venue">
+    <option value="">Sem local</option>
+    ${G.venues.filter(v=>v.active!==false).map(v=>`<option value="${v.id}" ${(t.venueId||'')=== v.id?'selected':''}>${esc(v.name)}${v.city?' — '+esc(v.city):''}</option>`).join('')}
+  </select>
+</div>
+<div class="sep"></div>
+<div class="g2">
+  <div class="f"><label>Rodadas Swiss</label>
+    <input type="number" id="et-rounds" min="1" max="15" value="${t.settings.totalRounds||4}" ${t.status!=='registration'?'disabled title="Torneio em andamento"':''}>
+  </div>
+  <div class="f"><label>Top Cut</label>
+    <select id="et-cut" ${t.status!=='registration'?'disabled':''}>
+      <option value="0" ${(t.settings.topCutSize||0)===0?'selected':''}>Sem top cut</option>
+      <option value="4" ${t.settings.topCutSize===4?'selected':''}>Top 4</option>
+      <option value="8" ${t.settings.topCutSize===8?'selected':''}>Top 8</option>
+      <option value="16" ${t.settings.topCutSize===16?'selected':''}>Top 16</option>
+    </select>
+  </div>
+</div>
+<div class="g2">
+  <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="et-timer" min="10" max="90" value="${t.settings.timerMinutes||50}"></div>
+  <div class="f"><label>Modo</label>
+    <select id="et-mode">
+      <option value="lc"   ${t.mode==='lc'  ?'selected':''}>League Challenge</option>
+      <option value="cup"  ${t.mode==='cup' ?'selected':''}>League Cup</option>
+      <option value="one"  ${t.mode==='one' ?'selected':''}>Championship</option>
+      <option value="cust" ${t.mode==='cust'||!t.mode?'selected':''}>Personalizado</option>
+    </select>
+  </div>
+</div>
+<div class="fx gap6 mb0" style="justify-content:space-between;margin-top:8px">
+  <button class="btn btn-xs btn-d" onclick="if(confirm('Excluir este torneio?'))delTour('${t.id}')"><i class="ti ti-trash"></i> Excluir</button>
+  <div class="fx gap6">
+    <button class="btn" onclick="closeM()">Cancelar</button>
+    <button class="btn btn-p" onclick="saveEditTour()"><i class="ti ti-check"></i> Salvar</button>
+  </div>
+</div>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   TEMPORADAS
+════════════════════════════════════════════════════════ */
+function getSeasons() {
+  // Derive seasons from tournament dates — monthly or annual
+  const bySeason = {};
+  G.tours.forEach(t => {
+    const d = t.date ? new Date(t.date) : new Date(t.createdAt);
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    const label = d.toLocaleString('pt-BR',{month:'long',year:'numeric'});
+    if (!bySeason[key]) bySeason[key] = { key, label, year:d.getFullYear(), month:d.getMonth()+1, tours:[] };
+    bySeason[key].tours.push(t);
+  });
+  return Object.values(bySeason).sort((a,b)=>b.key.localeCompare(a.key));
+}
+
+function renderSeasons() {
+  const seasons = getSeasons();
+  if (!seasons.length) return `<div class="empty"><p>Nenhum torneio para agrupar</p></div>`;
+
+  // Yearly summary
+  const byYear = {};
+  seasons.forEach(s => {
+    if (!byYear[s.year]) byYear[s.year] = { tours:0, players:new Set(), finished:0 };
+    byYear[s.year].tours += s.tours.length;
+    s.tours.forEach(t => {
+      t.players.forEach(p => byYear[s.year].players.add(p.gid||p.id));
+      if (t.status==='finished') byYear[s.year].finished++;
+    });
+  });
+
+  return `
+<h2 class="mb16">Temporadas</h2>
+${Object.entries(byYear).sort((a,b)=>b[0]-a[0]).map(([year, data])=>`
+<div class="card mb8">
+  <div class="fx sb2 mb12">
+    <h3>${year}</h3>
+    <div class="fx gap8">
+      <span class="badge bn">${data.tours} torneios</span>
+      <span class="badge bn">${data.players.size} jogadores únicos</span>
+      <span class="badge bs">${data.finished} finalizados</span>
+    </div>
+  </div>
+  <div class="g2 gap8">
+    ${seasons.filter(s=>s.year===Number(year)).map(s=>`
+    <div class="well">
+      <div class="fx sb2 mb6">
+        <span style="font-size:13px;font-weight:500;text-transform:capitalize">${s.label}</span>
+        <span class="badge bn">${s.tours.length}</span>
+      </div>
+      ${s.tours.map(t=>`<div class="plr" style="padding:5px 0" onclick="openTour('${t.id}')">
+        <div style="flex:1;min-width:0">
+          <div class="small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</div>
+        </div>
+        ${stbadge(t)}
+      </div>`).join('')}
+    </div>`).join('')}
+  </div>
+</div>`).join('')}`;
+}
+
+/* ════════════════════════════════════════════════════════
+   CONTAGEM REGRESSIVA (próximo torneio)
+════════════════════════════════════════════════════════ */
+function getNextTournament() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  return G.tours
+    .filter(t => t.date && new Date(t.date) >= today && t.status === 'registration')
+    .sort((a,b) => new Date(a.date) - new Date(b.date))[0] || null;
+}
+
+function renderCountdownCard() {
+  const t = getNextTournament();
+  if (!t) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const eventDate = new Date(t.date);
+  const diff = Math.round((eventDate - today) / 86400000);
+  const label = diff === 0 ? 'Hoje!' : diff === 1 ? 'Amanhã' : `em ${diff} dias`;
+  const color = diff === 0 ? 'var(--st)' : diff <= 3 ? 'var(--wt)' : 'var(--it)';
+  return `
+<div class="card mb16" style="border-color:${color};cursor:pointer" onclick="openTour('${t.id}')">
+  <div class="fx sb2">
+    <div>
+      <div class="lbl mb4" style="color:${color}"><i class="ti ti-calendar-event"></i> Próximo torneio</div>
+      <div style="font-size:15px;font-weight:600">${esc(t.name)}</div>
+      <div class="muted small mt4">${t.date} · ${t.players.length} inscritos${t.venueId?' · '+esc(venueName(t.venueId)):''}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:28px;font-weight:700;color:${color};line-height:1">${diff===0?'🎉':diff}</div>
+      <div class="muted small">${diff===0?'':diff===1?'dia':'dias'}</div>
+    </div>
+  </div>
+</div>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   RANKING GLOBAL (ELO modificado)
+   K = 32 × fator_torneio
+   Fator: lc=0.5 | cup=1.0 | one=2.0 | cust=0.75
+   Rating inicial: 1500
+════════════════════════════════════════════════════════ */
+function calcElo() {
+  const K_BASE = 32;
+  const MODE_K = { lc:0.5, cup:1.0, one:2.0, cust:0.75 };
+  const ratings = {};
+
+  // Sort tournaments by date
+  const sorted = [...G.tours]
+    .filter(t => t.status==='finished' && t.rounds.length>0)
+    .sort((a,b) => (a.date||a.createdAt) > (b.date||b.createdAt) ? 1 : -1);
+
+  function getRating(id) {
+    if (!ratings[id]) ratings[id] = { rating:1500, w:0, l:0, t:0, games:0, history:[] };
+    return ratings[id];
+  }
+  function expScore(rA, rB) { return 1 / (1 + Math.pow(10, (rB-rA)/400)); }
+
+  sorted.forEach(tour => {
+    const K = K_BASE * (MODE_K[tour.mode] || 0.75);
+    tour.rounds.forEach(rnd => {
+      rnd.pairings.forEach(p => {
+        if (p.isBye || p.result===null) return;
+        const p1 = tour.players.find(x=>x.id===p.p1);
+        const p2 = tour.players.find(x=>x.id===p.p2);
+        if (!p1||!p2) return;
+
+        // Use gid if available, else tournament-scoped id
+        const id1 = p1.gid||p1.id, id2 = p2.gid||p2.id;
+        if (!id1||!id2) return;
+
+        const r1 = getRating(id1), r2 = getRating(id2);
+        const exp1 = expScore(r1.rating, r2.rating);
+        const exp2 = 1 - exp1;
+
+        let s1=0, s2=0;
+        if (p.result===R.P1)  { s1=1; s2=0; r1.w++; r2.l++; }
+        else if (p.result===R.P2) { s1=0; s2=1; r1.l++; r2.w++; }
+        else if (p.result===R.TIE){ s1=0.5; s2=0.5; r1.t++; r2.t++; }
+        else return; // DL — não conta
+
+        const delta1 = K*(s1-exp1), delta2 = K*(s2-exp2);
+        r1.rating = Math.max(100, r1.rating + delta1);
+        r2.rating = Math.max(100, r2.rating + delta2);
+        r1.games++; r2.games++;
+      });
+    });
+  });
+
+  return ratings;
+}
+
+function renderRanking() {
+  const ratings = calcElo();
+  const players = G.players
+    .map(gp => {
+      const r = ratings[gp.id];
+      if (!r || r.games < 3) return null;
+      const gp2 = { ...gp, ...r };
+      gp2.wr = r.games > 0 ? Math.round(r.w/r.games*100) : 0;
+      return gp2;
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.rating - a.rating);
+
+  const unranked = G.players.filter(gp => {
+    const r = ratings[gp.id];
+    return !r || r.games < 3;
+  });
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h1 class="mb4">Ranking Global</h1>
+    <div class="muted small">ELO modificado · mínimo 3 partidas · K=32 (LC×0.5, Cup×1.0, Champ×2.0)</div>
+  </div>
+</div>
+${players.length===0?`<div class="card"><div class="empty"><i class="ti ti-trophy"></i><p>Nenhum jogador rankeado ainda.<br><span class="small">São necessárias ao menos 3 partidas em torneios finalizados.</span></p></div></div>`:`
+<div class="card p0 mb16 tov">
+<table>
+  <thead><tr><th>#</th><th>Jogador</th><th>ELO</th><th>W/L/E</th><th>WR%</th><th>Partidas</th></tr></thead>
+  <tbody>
+    ${players.map((p,i)=>`
+    <tr style="cursor:pointer" onclick="nav('pdetail',{pid:'${p.id}'})">
+      <td class="mono" style="font-weight:${i<3?700:400}">
+        ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+      </td>
+      <td><div class="fx gap6">${esc(p.name)} ${dbadge(p.division)}</div></td>
+      <td class="mono" style="font-weight:700;font-size:15px">${Math.round(p.rating)}</td>
+      <td class="mono">${p.w}/${p.l}/${p.t}</td>
+      <td><span class="badge ${p.wr>=50?'bs':'bd'}">${p.wr}%</span></td>
+      <td class="muted small">${p.games}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+</div>`}
+${unranked.length>0?`
+<div class="muted small">
+  <strong>${unranked.length}</strong> jogador${unranked.length!==1?'es':''} sem ranking (menos de 3 partidas)
+</div>`:''}`;
 }
 
 function loadOffline() {
