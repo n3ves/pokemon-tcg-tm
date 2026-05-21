@@ -20,10 +20,14 @@ function setSyncStatus(s, msg='') {
   syncStatus = s; syncError = msg;
   const dot = document.getElementById('sync-dot');
   const lbl = document.getElementById('sync-lbl');
-  if (dot) { dot.className = `sync-dot ${s}`; }
+  if (dot) {
+    dot.className = 'sync-dot ' + s;
+    const titles = { ok:'Realtime ativo — atualizações automáticas', syncing:'Sincronizando…', error:'Erro: '+msg, offline:'Offline (cache local)' };
+    dot.title = titles[s] || s;
+  }
   if (lbl) {
-    lbl.textContent = s==='ok'?'Sincronizado':s==='syncing'?'Salvando…':s==='error'?'Erro sync':s==='offline'?'Offline':'';
-    lbl.title = syncError;
+    const labels = { ok:'', syncing:'Salvando…', error:'Erro sync', offline:'Offline' };
+    lbl.textContent = labels[s] || '';
   }
 }
 
@@ -3596,6 +3600,10 @@ async function init() {
     DB.save('ptcg_venues_v3', G.venues);
 
     setSyncStatus('ok');
+
+    // Inicia Realtime após load bem-sucedido
+    SBRealtime.start();
+
   } catch (e) {
     console.warn('Supabase load failed, falling back to localStorage:', e);
     G.loadError = e.message?.slice(0,80) || 'Erro de conexão';

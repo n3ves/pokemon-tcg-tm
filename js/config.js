@@ -277,3 +277,176 @@ function recCut(n, mode) {
   if (n < 16) return 4;
   return 8;
 }
+
+/* ════════════════════════════════════════════════════════
+   SUPABASE REALTIME — WebSocket leve, sem SDK
+   Escuta INSERT/UPDATE/DELETE em players, tournaments, venues
+   e atualiza G diretamente, re-renderizando só se necessário
+════════════════════════════════════════════════════════ */
+const SBRealtime = (function () {
+  const WS_URL = SB_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
+  const TABLES  = ['players', 'tournaments', 'venues'];
+  const RECONNECT_MS = [1000, 2000, 5000, 10000, 30000]; // backoff
+  let ws        = null;
+  let refMap    = {};   // ref → resolve callback (heartbeat/join acks)
+  let refCount  = 0;
+  let reconnTry = 0;
+  let hbTimer   = null;
+  let active    = false;
+
+  function nextRef() { return String(++refCount); }
+
+  function send(obj) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+  }
+
+  function heartbeat() {
+    send({ topic:'phoenix', event:'heartbeat', payload:{}, ref: nextRef() });
+  }
+
+  function subscribe(table) {
+    const ref = nextRef();
+    send({
+      topic:   'realtime:public:' + table,
+      event:   'phx_join',
+      payload: {
+        config: {
+          broadcast:  { self: false },
+          presence:   { key: '' },
+          postgres_changes: [{ event: '*', schema: 'public', table: table }],
+        },
+      },
+      ref: ref,
+    });
+  }
+
+  function applyChange(table, eventType, newRow, oldRow) {
+    if (typeof G === 'undefined') return;
+    let changed = false;
+
+    if (table === 'players') {
+      if (eventType === 'DELETE') {
+        const id = oldRow && oldRow.id;
+        if (id) { G.players = G.players.filter(p => p.id !== id); changed = true; }
+      } else {
+        const p = SB.rowP(newRow);
+        const idx = G.players.findIndex(x => x.id === p.id);
+        if (idx >= 0) { G.players[idx] = p; } else { G.players.push(p); }
+        changed = true;
+      }
+    }
+
+    if (table === 'tournaments') {
+      if (eventType === 'DELETE') {
+        const id = oldRow && oldRow.id;
+        if (id) { G.tours = G.tours.filter(t => t.id !== id); changed = true; }
+      } else {
+        // Full row comes in full_state — reuse rowT mapper
+        const t = SB.rowT(newRow);
+        // Preserve local timer state if same tournament is open
+        const existing = G.tours.find(x => x.id === t.id);
+        if (existing) {
+          t._timer   = existing._timer;
+          t._timerOn = existing._timerOn;
+        }
+        const idx = G.tours.findIndex(x => x.id === t.id);
+        if (idx >= 0) { G.tours[idx] = t; } else { G.tours.push(t); }
+        changed = true;
+      }
+    }
+
+    if (table === 'venues') {
+      if (eventType === 'DELETE') {
+        const id = oldRow && oldRow.id;
+        if (id) { G.venues = G.venues.filter(v => v.id !== id); changed = true; }
+      } else {
+        const v = SB.rowV(newRow);
+        const idx = G.venues.findIndex(x => x.id === v.id);
+        if (idx >= 0) { G.venues[idx] = v; } else { G.venues.push(v); }
+        changed = true;
+      }
+    }
+
+    if (changed && typeof render === 'function') {
+      // Se estamos a ver o torneio que acabou de mudar, não re-renderiza
+      // a não ser que seja o torneio actual (para não interromper acções do utilizador)
+      const isEditingThisTour = (
+        table === 'tournaments' &&
+        G.view === 'tournament' &&
+        G.tourId === (newRow && newRow.id) &&
+        G.auth   // só quem está a editar
+      );
+      if (!isEditingThisTour) {
+        console.log('[Realtime]', eventType, table, (newRow||oldRow)?.id?.slice(0,8));
+        render();
+      }
+    }
+  }
+
+  function onMessage(raw) {
+    let msg;
+    try { msg = JSON.parse(raw); } catch(_) { return; }
+
+    // ACK de heartbeat / join
+    if (msg.event === 'phx_reply') return;
+    if (msg.event === 'phx_error') {
+      console.warn('[Realtime] channel error:', msg.payload);
+      return;
+    }
+
+    // Dados reais chegam como postgres_changes
+    if (msg.event === 'postgres_changes') {
+      const payload = msg.payload;
+      const table   = payload.table;
+      const etype   = payload.type;   // INSERT | UPDATE | DELETE
+      const newRow  = payload.record;
+      const oldRow  = payload.old_record;
+      applyChange(table, etype, newRow, oldRow);
+    }
+  }
+
+  function connect() {
+    if (ws) { try { ws.close(); } catch(_) {} }
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = function () {
+      console.log('[Realtime] conectado');
+      reconnTry = 0;
+      // Subscribe a todas as tabelas
+      TABLES.forEach(subscribe);
+      // Heartbeat a cada 30s
+      clearInterval(hbTimer);
+      hbTimer = setInterval(heartbeat, 30000);
+      if (typeof setSyncStatus === 'function') setSyncStatus('ok');
+    };
+
+    ws.onmessage = function (e) { onMessage(e.data); };
+
+    ws.onerror = function (e) {
+      console.warn('[Realtime] WebSocket error', e);
+    };
+
+    ws.onclose = function (e) {
+      clearInterval(hbTimer);
+      if (!active) return; // parado intencionalmente
+      const delay = RECONNECT_MS[Math.min(reconnTry, RECONNECT_MS.length - 1)];
+      reconnTry++;
+      console.warn('[Realtime] desconectado, reconectando em ' + delay + 'ms...');
+      if (typeof setSyncStatus === 'function') setSyncStatus('offline');
+      setTimeout(connect, delay);
+    };
+  }
+
+  return {
+    start: function () {
+      if (active) return;
+      active = true;
+      connect();
+    },
+    stop: function () {
+      active = false;
+      clearInterval(hbTimer);
+      if (ws) { try { ws.close(); } catch(_) {} ws = null; }
+    },
+  };
+})();
