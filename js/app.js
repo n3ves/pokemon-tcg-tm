@@ -2589,6 +2589,606 @@ function updateToursList(q) {
       }).join('');
 }
 
+
+/* ════════════════════════════════════════════════════════
+   RESTORED RENDER FUNCTIONS
+════════════════════════════════════════════════════════ */
+
+function getAllArchetypes() {
+  const fromSettings = G.settings.archetypes || [];
+  const fromTours = [];
+  G.tours.forEach(t => t.players.forEach(p => {
+    if (p.deckArchetype && !fromTours.includes(p.deckArchetype)) fromTours.push(p.deckArchetype);
+  }));
+  return [...new Set([...fromSettings, ...fromTours])].sort((a,b)=>a.localeCompare(b,'pt'));
+}
+
+function sortByDate(a, b) {
+  const da = a.date ? new Date(a.date).getTime() : a.createdAt;
+  const db = b.date ? new Date(b.date).getTime() : b.createdAt;
+  return db - da;
+}
+
+function deletePlayer(id) {
+  if (!requireAuth()) return;
+  if (!confirm('Excluir jogador?')) return;
+  G.players = G.players.filter(p => p.id !== id);
+  saveAll(); SB.savePlayers(G.players).catch(()=>{});
+  notify('Excluído'); render();
+}
+
+function deleteTournament(id) {
+  delTour(id);
+}
+
+function renderVenueRows(list) {
+  if (!list.length) return `<div class="empty"><i class="ti ti-building-store"></i><p>Nenhum local encontrado</p></div>`;
+  return list.map(v => {
+    const tourCount = G.tours.filter(t => t.venueId === v.id).length;
+    return `<div class="plr" onclick="nav('vdetail',{vid:'${v.id}'})">
+      <div class="av" style="background:var(--ib);color:var(--it);border-radius:8px">
+        <i class="ti ti-building-store" style="font-size:16px"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="fx gap6 mb4">
+          <strong>${esc(v.name)}</strong>
+          ${v.nickname?`<span class="muted small">"${esc(v.nickname)}"</span>`:''}
+          ${v.active===false?`<span class="badge bd">Inativo</span>`:''}
+        </div>
+        <div class="muted small">
+          ${[v.city, v.state].filter(Boolean).join(' / ')}
+          ${v.responsible?' · '+esc(v.responsible):''}
+          ${tourCount>0?` · ${tourCount} torneio${tourCount!==1?'s':''}`: ''}
+        </div>
+      </div>
+      <div class="fx gap4">
+        <button class="btn btn-xs" onclick="event.stopPropagation();openVenueModal('${v.id}')"><i class="ti ti-edit"></i></button>
+        <i class="ti ti-chevron-right muted"></i>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderVenues() {
+  const q = norm(G.search);
+  const list = G.venues
+    .filter(v => !q || norm(v.name).includes(q) || norm(v.city||'').includes(q) || norm(v.responsible||'').includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h1 class="mb4">Locais</h1>
+    <div class="muted small">${G.venues.length} local${G.venues.length!==1?'is':''} cadastrado${G.venues.length!==1?'s':''}</div>
+  </div>
+  <button class="btn btn-p" onclick="openVenueModal(null)"><i class="ti ti-plus"></i> Novo local</button>
+</div>
+<div class="sw mb16">
+  <i class="ti ti-search"></i>
+  <input id="venues-search" placeholder="Buscar por nome, cidade..." value="${esc(G.search)}" oninput="updateVenuesList(this.value)">
+</div>
+<div class="card p0" id="venues-list">
+  ${renderVenueRows(list)}
+</div>`;
+}
+
+function renderVenueDetail() {
+  const v = G.venues.find(x=>x.id===G.vid);
+  if (!v) return `<div class="empty">Local não encontrado</div>`;
+  const tours = G.tours.filter(t => t.venueId === v.id).sort(sortByDate);
+  return `
+<div class="fx gap12 mb16">
+  <button class="btn btn-sm" onclick="nav('venues')"><i class="ti ti-arrow-left"></i> Voltar</button>
+  <div class="av" style="width:48px;height:48px;font-size:20px;background:var(--ib);color:var(--it);border-radius:10px">
+    <i class="ti ti-building-store"></i>
+  </div>
+  <div>
+    <h1>${esc(v.name)}${v.nickname?` <span class="muted" style="font-size:14px">"${esc(v.nickname)}"</span>`:''}</h1>
+    <div class="fx gap6 mt4">
+      ${v.active===false?`<span class="badge bd">Inativo</span>`:`<span class="badge bs">Ativo</span>`}
+      ${v.city?`<span class="badge bn">${esc(v.city)}${v.state?' / '+v.state:''}</span>`:''}
+    </div>
+  </div>
+  <button class="btn btn-sm ml" onclick="openVenueModal('${v.id}')"><i class="ti ti-edit"></i> Editar</button>
+</div>
+<div class="g2 gap16 mb16">
+  <div class="card">
+    <h3 class="mb12">Informações</h3>
+    <table>${[
+      v.address&&['Endereço',esc(v.address)],
+      (v.city||v.state)&&['Cidade',[esc(v.city||''),esc(v.state||'')].filter(Boolean).join(' / ')],
+      v.zip&&['CEP',esc(v.zip)],
+      v.responsible&&['Responsável',esc(v.responsible)],
+      v.contact&&['Contato',esc(v.contact)],
+      v.organizerName&&['Organizer',esc(v.organizerName)+(v.organizerPopId?' <span class="mono muted">ID: '+esc(v.organizerPopId)+'</span>':'')],
+      v.notes&&['Observações',esc(v.notes)],
+    ].filter(Boolean).map(([k,vv])=>`<tr><td class="muted" style="width:40%;padding:4px 0">${k}</td><td style="padding:4px 0">${vv}</td></tr>`).join('')}</table>
+  </div>
+  <div class="card">
+    <h3 class="mb12">Estatísticas</h3>
+    <div class="g2">
+      <div class="well tc"><div class="sv">${tours.length}</div><div class="sl">Torneios</div></div>
+      <div class="well tc"><div class="sv">${tours.reduce((s,t)=>s+t.players.length,0)}</div><div class="sl">Jogadores totais</div></div>
+    </div>
+  </div>
+</div>
+<h2 class="mb12">Torneios neste local</h2>
+<div class="card p0">
+${tours.length===0?`<div class="empty"><p>Nenhum torneio vinculado</p></div>`:
+tours.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
+  <div style="flex:1"><div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
+  <div class="muted small">${t.date||''} · ${t.players.length} jogadores</div></div>
+  <i class="ti ti-chevron-right muted"></i>
+</div>`).join('')}
+</div>`;
+}
+
+function renderVenueModal() {
+  const m = G.modal;
+  const v = m.id ? G.venues.find(x=>x.id===m.id) : null;
+  return `
+<div class="mtitle"><i class="ti ti-building-store"></i> ${v?'Editar local':'Novo local'}</div>
+<div class="g2">
+  <div class="f"><label>Nome *</label><input id="vm-name" value="${esc(v?.name||'')}" autofocus></div>
+  <div class="f"><label>Nome curto</label><input id="vm-nick" value="${esc(v?.nickname||'')}"></div>
+</div>
+<div class="f"><label>Endereço</label><input id="vm-addr" value="${esc(v?.address||'')}"></div>
+<div class="g2">
+  <div class="f"><label>Cidade</label><input id="vm-city" value="${esc(v?.city||'')}"></div>
+  <div class="f"><label>Estado</label><input id="vm-state" value="${esc(v?.state||'')}"></div>
+</div>
+<div class="g2">
+  <div class="f"><label>CEP</label><input id="vm-zip" value="${esc(v?.zip||'')}"></div>
+  <div class="f"><label>Responsável</label><input id="vm-resp" value="${esc(v?.responsible||'')}"></div>
+</div>
+<div class="sep"></div>
+<div class="lbl mb8">Organizer (TDF)</div>
+<div class="g2">
+  <div class="f"><label>Nome do organizador</label><input id="vm-org-name" value="${esc(v?.organizerName||'')}"></div>
+  <div class="f"><label>Player ID (popid)</label><input id="vm-org-popid" value="${esc(v?.organizerPopId||'')}"></div>
+</div>
+<div class="g2">
+  <div class="f"><label>Contato</label><input id="vm-contact" value="${esc(v?.contact||'')}"></div>
+  <div class="f" style="justify-content:flex-end"><label class="fx gap6 mt4" style="cursor:pointer">
+    <input type="checkbox" id="vm-active" ${v?.active===false?'':'checked'}> Ativo
+  </label></div>
+</div>
+<div class="f mb16"><label>Observações</label><textarea id="vm-notes" style="height:60px">${esc(v?.notes||'')}</textarea></div>
+${v?`<div class="mb12"><button class="btn btn-xs btn-d" onclick="deleteVenue('${v.id}')"><i class="ti ti-trash"></i> Excluir local</button></div>`:''}
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveVenueModal('${m.id||''}')"><i class="ti ti-check"></i> Salvar</button>
+</div>`;
+}
+
+function renderArchModal() {
+  const m = G.modal;
+  const name = m.name || '';
+  return `
+<div class="mtitle"><i class="ti ti-cards"></i> ${name?'Editar deck':'Novo deck'}</div>
+<div class="f mb16">
+  <label>Nome do deck *</label>
+  <input id="arch-name" value="${esc(name)}" autofocus>
+</div>
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  ${name?`<button class="btn btn-xs btn-d" onclick="deleteArchetype('${esc(name)}')"><i class="ti ti-trash"></i></button>`:''}
+  <button class="btn btn-p" onclick="saveArchModal('${esc(name)}')"><i class="ti ti-check"></i> Salvar</button>
+</div>`;
+}
+
+function renderCreateTour() {
+  const d = G._ctd || {};
+  const modes = [
+    {id:'lc',  name:'League Challenge', desc:'Swiss sem top cut'},
+    {id:'cup', name:'League Cup',       desc:'Swiss + top cut'},
+    {id:'one', name:'Championship',     desc:'Premier Event'},
+    {id:'cust',name:'Personalizado',    desc:'Config. livre'},
+  ];
+  return `
+<div class="fx gap12 mb20">
+  <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-arrow-left"></i> Voltar</button>
+  <h1>Novo torneio</h1>
+</div>
+<div style="max-width:580px">
+<div class="card mb16">
+  <h3 class="mb16">Informações</h3>
+  <div class="f"><label>Nome *</label><input id="ct-name" placeholder="Liga Cup Rio — Maio 2025" value="${esc(d.name||'')}" oninput="G._ctd=G._ctd||{};G._ctd.name=this.value"></div>
+  <div class="g2">
+    <div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')}" oninput="G._ctd=G._ctd||{};G._ctd.city=this.value"></div>
+    <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')}" oninput="G._ctd=G._ctd||{};G._ctd.state=this.value"></div>
+  </div>
+  <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}" onchange="G._ctd=G._ctd||{};G._ctd.date=this.value"></div>
+  <div class="f"><label>Local</label>
+    <select id="ct-venue" onchange="G._ctd=G._ctd||{};G._ctd.venueId=this.value||null">
+      <option value="">Selecionar local...</option>
+      ${G.venues.filter(v=>v.active!==false).map(v=>`<option value="${v.id}" ${(d.venueId||'')=== v.id?'selected':''}>${esc(v.name)}${v.city?' — '+esc(v.city):''}</option>`).join('')}
+    </select>
+  </div>
+</div>
+<div class="card mb16">
+  <h3 class="mb12">Formato</h3>
+  <div class="cg mb16">
+    ${modes.map(m=>`<div class="chip ${(d.mode||'cup')===m.id?'on':''}" onclick="setCTMode('${m.id}')">
+      <strong>${m.name}</strong><div class="small muted">${m.desc}</div></div>`).join('')}
+  </div>
+  <div class="g2">
+    <div class="f"><label>Rodadas Swiss</label><input type="number" id="ct-rounds" min="1" max="15" value="${d.totalRounds||4}" oninput="G._ctd=G._ctd||{};G._ctd.totalRounds=Number(this.value)"></div>
+    <div class="f"><label>Top Cut</label><select id="ct-cut" onchange="G._ctd=G._ctd||{};G._ctd.topCutSize=Number(this.value)">
+      <option value="0" ${(d.topCutSize||0)===0?'selected':''}>Sem top cut</option>
+      <option value="4" ${(d.topCutSize||0)===4?'selected':''}>Top 4</option>
+      <option value="8" ${(d.topCutSize||0)===8?'selected':''}>Top 8</option>
+      <option value="16" ${(d.topCutSize||0)===16?'selected':''}>Top 16</option>
+    </select></div>
+  </div>
+  <div class="g2">
+    <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="ct-timer" min="10" max="90" value="${d.timerMinutes||50}" oninput="G._ctd=G._ctd||{};G._ctd.timerMinutes=Number(this.value)"></div>
+    <div class="f"><label>Seed (vazio = aleatório)</label><input id="ct-seed" value="${d.seed||''}" oninput="G._ctd=G._ctd||{};G._ctd.seed=this.value"></div>
+  </div>
+</div>
+<div class="card mb16">
+  <h3 class="mb12">Divisões</h3>
+  <div class="fxc gap12">
+    <label class="fx gap6"><input type="checkbox" id="ct-sepdiv" ${(d.separateDivisions!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.separateDivisions=this.checked"> Pareamentos separados por divisão</label>
+    <label class="fx gap6"><input type="checkbox" id="ct-divst"  ${(d.standingsByDiv!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.standingsByDiv=this.checked"> Standings separados por divisão</label>
+    <label class="fx gap6"><input type="checkbox" id="ct-debug" ${d.debugMode?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.debugMode=this.checked"> Modo debug</label>
+  </div>
+</div>
+<div class="card mb16">
+  <h3 class="mb8">Jogadores</h3>
+  <p class="muted small mb10">Opcional — pode adicionar após criar o torneio.</p>
+  <div class="f"><label>Buscar banco de dados</label>
+    <div class="fx gap6">
+      <input id="ct-pq" placeholder="Nome, ID..." style="flex:1" oninput="renderCTPlayerSearch(this.value)">
+      <button class="btn btn-sm" onclick="openPModal(null,true)"><i class="ti ti-plus"></i></button>
+    </div>
+  </div>
+  <div id="ct-pres"></div>
+  <div id="ct-player-panel">
+  ${(d.players||[]).length>0?`
+  <div class="sep" style="margin:8px 0"></div>
+  <div class="lbl mb6">Selecionados <span id="ct-pcount" class="badge bn">${(d.players||[]).length} selecionados</span></div>
+  ${(d.players||[]).map((p,i)=>`<div class="plr" style="padding:6px 10px">
+    <span class="mono muted" style="min-width:20px;font-size:11px">${i+1}</span>
+    <span style="flex:1;font-size:13px">${esc(p.name)}</span>
+    ${dbadge(p.division)}
+    <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
+  </div>`).join('')}`:'<span id="ct-pcount" class="muted small">opcional</span>'}
+  </div>
+</div>
+<button class="btn btn-p fw jc" style="padding:12px" onclick="createTour()">
+  <i class="ti ti-player-play"></i> Criar torneio
+</button>
+</div>`;
+}
+
+function renderCTPlayerSearch(q) {
+  const el = document.getElementById('ct-pres');
+  if (!el) return;
+  if (!q || q.length < 1) { el.innerHTML = ''; return; }
+  G._ctd = G._ctd || {};
+  const have = new Set((G._ctd.players||[]).map(p=>p.gid).filter(Boolean));
+  const found = G.players.filter(p => !have.has(p.id) && (
+    norm(p.name).includes(norm(q)) || norm(p.playerId||'').includes(norm(q))
+  )).slice(0, 6);
+  el.innerHTML = found.length === 0
+    ? `<p class="muted small mt8">Sem resultados. <button class="btn btn-xs" onclick="openPModal(null,true)">Criar novo</button></p>`
+    : `<div class="card p0 mt8">${found.map(p=>`
+      <div class="plr" onclick="ctAddPlayer('${p.id}')">
+        <div class="av" style="width:28px;height:28px;font-size:10px">${esc(initials(p.name))}</div>
+        <div style="flex:1"><div>${esc(p.name)}</div><div class="muted small">${p.division}${p.playerId?' · '+p.playerId:''}</div></div>
+        <i class="ti ti-plus muted"></i>
+      </div>`).join('')}</div>`;
+}
+
+/* ── Tournament tabs ─────────────────────────────────── */
+function renderTour() {
+  const t = ct();
+  if (!t) return `<div class="empty">Torneio não encontrado</div>`;
+  const tabs = [
+    { id:'reg',       icon:'ti-users',        label:'Registro' },
+    { id:'rounds',    icon:'ti-layout-list',  label:'Rodada' },
+    { id:'standings', icon:'ti-list-numbers', label:'Standings' },
+    { id:'history',   icon:'ti-history',      label:'Histórico' },
+    { id:'decklists', icon:'ti-cards',        label:'Decklists' },
+    ...(t.topBracket?.length ? [{ id:'topcut', icon:'ti-tournament', label:'Top Cut' }] : []),
+    ...(t.status==='finished' ? [{ id:'finished', icon:'ti-trophy', label:'Resultado' }] : []),
+    { id:'debug',  icon:'ti-bug',      label:'Debug' },
+    { id:'export', icon:'ti-download', label:'Exportar' },
+  ];
+  const rnd = t.rounds[t.currentRound-1];
+  const done = rnd ? rnd.pairings.filter(p=>p.result!==null).length : 0;
+  const total = rnd ? rnd.pairings.length : 0;
+  let body = '';
+  if      (G.tab==='reg')       body = renderReg(t);
+  else if (G.tab==='rounds')    body = renderRounds(t);
+  else if (G.tab==='standings') body = renderStandings(t);
+  else if (G.tab==='history')   body = renderHistory(t);
+  else if (G.tab==='decklists') body = renderDecklists(t);
+  else if (G.tab==='topcut')    body = renderTopCut(t);
+  else if (G.tab==='finished')  body = renderFinished(t);
+  else if (G.tab==='debug')     body = renderDebug(t);
+  else if (G.tab==='export')    body = renderExport(t);
+  else body = renderReg(t);
+  return `
+<div class="tb">
+  <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-arrow-left"></i></button>
+  <strong>${esc(t.name)}</strong>
+  ${stbadge(t)}
+  <span class="badge bn">${t.players.length} jog.</span>
+  ${t.venueId?`<span class="badge bn"><i class="ti ti-building-store"></i> ${esc(venueName(t.venueId))}</span>`:''}
+  ${t.status==='rounds'?renderTimerBlock(t):''}
+</div>
+<div class="tabs">
+  ${tabs.map(tb=>`<div class="tab ${G.tab===tb.id?'on':''}" onclick="G.tab='${tb.id}';render()">
+    <i class="ti ${tb.icon}"></i>${tb.label}</div>`).join('')}
+</div>
+${t.status==='rounds'&&rnd&&total>0?`
+<div style="padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd)">
+  <div class="fx sb2 mb4 small muted">
+    <span>Rodada ${t.currentRound}/${t.settings.totalRounds} · ${done}/${total}</span>
+    <span>${total-done} pendentes</span>
+  </div>
+  <div class="prog"><div class="prog-f" style="width:${total?Math.round(done/total*100):0}%"></div></div>
+</div>`:''}
+<div style="flex:1;overflow-y:auto;padding:20px">${body}</div>`;
+}
+
+function renderReg(t) {
+  const n = t.players.length;
+  const rec = recRounds(n), cut = recCut(n, t.settings.mode);
+  const byDiv = DIVS.map(d=>({d,c:t.players.filter(p=>p.division===d).length})).filter(x=>x.c>0);
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h2 class="mb4">Registro de jogadores</h2>
+    <div class="fx gap6">
+      ${byDiv.map(({d,c})=>`<span class="badge ${DC[d]}">${d[0]}: ${c}</span>`).join('')}
+      ${n>0?`<span class="muted small">${rec} rodadas · ${cut?'Top '+cut:'Sem top cut'}</span>`:''}
+    </div>
+  </div>
+  ${t.status==='registration'?`<button class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
+    <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
+</div>
+${t.status==='registration'?`
+<div class="g2 gap16">
+  <div class="card">
+    <h3 class="mb12">Adicionar jogador</h3>
+    <div class="f"><label>Buscar banco de dados</label>
+      <div class="fx gap6">
+        <input id="reg-q" placeholder="Nome, ID..." style="flex:1" oninput="renderRegSearch(this.value)">
+        <button class="btn btn-sm" onclick="openPModal(null,true)"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
+    <div id="reg-res"></div>
+    <div class="sep"></div>
+    <p class="muted small mb8">Múltiplos (um por linha):</p>
+    <textarea id="bulk-in" style="height:80px" placeholder="João Silva&#10;Maria Santos"></textarea>
+    <div class="fx gap8 mt8">
+      <select id="bulk-div">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
+      <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
+    </div>
+  </div>
+  <div class="card p0" style="max-height:420px;overflow-y:auto">
+    ${n===0?`<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador</p></div>`:
+    t.players.map((p,i)=>`<div class="plr">
+      <span class="mono muted" style="min-width:24px">${i+1}</span>
+      <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
+      <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
+    </div>`).join('')}
+  </div>
+</div>`:`
+<div class="card p0">
+${t.players.map((p,i)=>`<div class="plr">
+  <span class="mono muted" style="min-width:24px">${i+1}</span>
+  <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
+  ${p.dropped?`<span class="badge bn">Dropped</span>`:''}
+  ${p.dq?`<span class="badge bd">DQ</span>`:''}
+</div>`).join('')}
+</div>`}`;
+}
+
+function renderRegDBList(t, filter, page) {
+  const PER_PAGE = 15;
+  const q = norm(filter||'');
+  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
+  const found = G.players.filter(p => !have.has(p.id) && (!q || norm(p.name).includes(q) || norm(p.playerId||'').includes(q)));
+  const pg = page||0;
+  const slice = found.slice(pg*PER_PAGE, (pg+1)*PER_PAGE);
+  if (!slice.length) return `<div class="empty"><p>Nenhum resultado</p></div>`;
+  return slice.map(p=>`<div class="plr" onclick="addFromDB('${p.id}')">
+    <div class="av" style="width:28px;height:28px;font-size:10px">${esc(initials(p.name))}</div>
+    <div style="flex:1"><div>${esc(p.name)}</div><div class="muted small">${p.division}${p.playerId?' · '+p.playerId:''}</div></div>
+    <i class="ti ti-plus muted"></i>
+  </div>`).join('');
+}
+
+function renderRounds(t) {
+  if (t.status==='registration') return `<div class="empty"><i class="ti ti-layout-list"></i><p>Inicie o torneio para ver os pareamentos</p></div>`;
+  const rnd = t.rounds[t.currentRound-1];
+  if (!rnd) return `<div class="empty">Nenhuma rodada ativa</div>`;
+  const allDone = rnd.pairings.every(p=>p.result!==null);
+  const isLast = t.currentRound >= t.settings.totalRounds;
+  let html = '';
+  if (t.settings.separateDivisions) {
+    for (const div of DIVS) {
+      const dp = rnd.pairings.filter(p => p.isBye ? pdiv(p.p1,t)===div : pdiv(p.p1,t)===div||pdiv(p.p2,t)===div);
+      if (!dp.length) continue;
+      html += `<div class="lbl mt12">${div}</div>`;
+      html += dp.map(p=>pairingRow(p,t)).join('');
+    }
+  } else {
+    html = rnd.pairings.map(p=>pairingRow(p,t)).join('');
+  }
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h2>Rodada ${t.currentRound} / ${t.settings.totalRounds}</h2>
+    ${rnd.isSimulated?`<span class="badge bw mt4"><i class="ti ti-player-play"></i> Simulada</span>`:''}
+  </div>
+  <div class="fx gap6">
+    <button class="btn btn-sm" onclick="printMatchSlips('${t.id}')"><i class="ti ti-printer"></i> Match Slips</button>
+    <button class="btn btn-sm" onclick="printPairings('${t.id}')"><i class="ti ti-layout-list"></i> Pairings</button>
+    <button class="btn btn-sm" onclick="simulateRound()"><i class="ti ti-dice"></i> Simular</button>
+    ${allDone?`<button class="btn btn-p" onclick="advanceRound()">
+      ${isLast?(t.settings.topCutSize>0?'Ir para Top Cut':'Finalizar'):`Rodada ${t.currentRound+1}`}
+      <i class="ti ti-arrow-right"></i></button>`:
+      `<button class="btn" disabled><i class="ti ti-hourglass"></i> Aguardando</button>`}
+  </div>
+</div>
+${html}`;
+}
+
+function pairingRow(p, t) {
+  const bye = p.p2==='BYE';
+  const p1n = esc(pname(p.p1,t)), p2n = bye ? 'BYE' : esc(pname(p.p2,t));
+  const p1d = pdiv(p.p1,t), p2d = bye ? '' : pdiv(p.p2,t);
+  const r = p.result;
+  const p1w=r===R.P1, p2w=r===R.P2, p1l=r===R.P2||r===R.DL, p2l=r===R.P1||r===R.DL;
+  return `
+<div class="pr ${p.isRematch?'rematch':''}">
+  <div class="pt">${p.table||'—'}</div>
+  <div class="pp ${p1w?'win':p1l?'lose':''}">
+    ${dbadge(p1d)}<span style="flex:1;font-weight:${p1w?700:400}">${p1n}</span>
+    ${p1w?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}
+  </div>
+  <div class="pvs">vs</div>
+  <div class="pp ${p2w?'win':p2l?'lose':''}">
+    ${bye?`<span class="badge bi">BYE</span>`:
+    `${dbadge(p2d)}<span style="flex:1;font-weight:${p2w?700:400}">${p2n}</span>
+    ${p2w?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}`}
+  </div>
+  <div class="pres">
+    ${bye?'':r?`
+      <div class="fx gap4">
+        ${r===R.P1?`<span class="badge bs">P1</span>`:r===R.P2?`<span class="badge bd">P2</span>`:r===R.TIE?`<span class="badge bw">Emp</span>`:`<span class="badge bn">DL</span>`}
+        <button class="ib" onclick="setRes('${p.id}',null)" title="Desfazer"><i class="ti ti-backspace"></i></button>
+        <button class="ib" onclick="openJudge('${p.id}')" title="Juiz"><i class="ti ti-gavel"></i></button>
+      </div>
+      ${p.judgeNote?`<div class="small" style="color:var(--wt)"><i class="ti ti-gavel"></i> ${esc(p.judgeNote)}</div>`:''}`:`
+    <div class="rg">
+      <button class="rb rp1" onclick="setRes('${p.id}','${R.P1}')">P1</button>
+      <button class="rb rtie" onclick="setRes('${p.id}','${R.TIE}')">Emp</button>
+      <button class="rb rp2" onclick="setRes('${p.id}','${R.P2}')">P2</button>
+      <button class="rb rdl"  onclick="setRes('${p.id}','${R.DL}')" title="Double Loss">DL</button>
+    </div>`}
+  </div>
+</div>`;
+}
+
+function renderStandings(t) {
+  const header = `<div class="fx sb2 mb16">
+    <h2>Standings</h2>
+    <button class="btn btn-sm" onclick="printStandings('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>
+  </div>`;
+  if (t.settings.standingsByDiv && t.settings.separateDivisions) {
+    return header + DIVS.map(div => {
+      const s = getStandings(t.players, t.rounds, div);
+      if (!s.length) return '';
+      return `<div class="lbl mb8">${div}</div>${standTable(s, t)}`;
+    }).join('');
+  }
+  return header + standTable(getStandings(t.players, t.rounds), t);
+}
+
+function standTable(stand, t) {
+  const cut = t.settings.topCutSize;
+  return `<div class="card p0 mb16 tov">
+<table>
+  <thead><tr><th>#</th><th>Jogador</th><th>Pts</th><th>W/L/E</th><th>OWP%</th><th>OOWP%</th><th></th></tr></thead>
+  <tbody>
+    ${stand.map((p,i)=>`
+    ${i===cut&&cut>0?`<tr class="cutrow"><td colspan="7"><div class="cutline"></div></td></tr>`:''}
+    <tr style="opacity:${p.dropped?'.4':'1'}">
+      <td class="mono" style="font-weight:${i<3&&!p.dropped?700:400}">
+        ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+      </td>
+      <td><div class="fx gap6">${esc(p.name||G.players.find(x=>x.id===p.gid)?.name||'?')} ${dbadge(p.division)}</div>
+        ${p.dropped?'<div class="muted small">Dropped</div>':''}
+      </td>
+      <td class="mono" style="font-weight:700;font-size:15px">${p.mp}</td>
+      <td class="mono">${p.w}/${p.l}/${p.t}</td>
+      <td class="mono">${pct(p.owp)}</td>
+      <td class="mono">${pct(p.oowp)}</td>
+      <td>
+        ${!p.dropped&&!p.dq&&t.status==='rounds'?`<button class="btn btn-xs btn-w" onclick="dropP('${p.id}')">Drop</button>`:''}
+        ${p.dq?`<span class="badge bd">DQ</span>`:''}
+      </td>
+    </tr>`).join('')}
+  </tbody>
+</table></div>`;
+}
+
+function renderHistory(t) {
+  if (!t.rounds.length) return `<div class="empty"><p>Nenhuma rodada completada</p></div>`;
+  return `<h2 class="mb16">Histórico de rodadas</h2>
+${t.rounds.map((rnd,ri) => `
+  <div class="mb8">
+    <div class="coll-hd ${ri===t.rounds.length-1?'open':''}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span>Rodada ${rnd.number}</span>
+      <div class="fx gap8"><span class="muted small">${rnd.pairings.filter(p=>!p.isBye).length} mesas</span><i class="ti ti-chevron-down"></i></div>
+    </div>
+    <div class="coll-bd ${ri===t.rounds.length-1?'open':''}">
+      <div class="tov"><table>
+        <thead><tr><th>Mesa</th><th>J1</th><th>Resultado</th><th>J2</th></tr></thead>
+        <tbody>${rnd.pairings.map(p=>{
+          const bye=p.p2==='BYE';
+          return `<tr>
+            <td class="mono">${p.table||'—'}</td>
+            <td>${esc(pname(p.p1,t))} ${dbadge(pdiv(p.p1,t))}</td>
+            <td>${bye?`<span class="badge bi">BYE</span>`:
+               p.result===R.P1?`<span class="badge bs">P1</span>`:
+               p.result===R.P2?`<span class="badge bd">P2</span>`:
+               p.result===R.TIE?`<span class="badge bw">Emp</span>`:
+               p.result===R.DL?`<span class="badge bn">DL</span>`:
+               `<span class="badge bn">—</span>`}
+              ${p.isRematch?`<span class="badge bw">⚠R</span>`:''}</td>
+            <td>${bye?'—':esc(pname(p.p2,t))}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>
+  </div>`).join('')}`;
+}
+
+function renderTopCut(t) {
+  if (!t.topBracket?.length) return `<div class="empty"><p>Top cut não iniciado</p></div>`;
+  const last = t.topBracket[t.topBracket.length-1];
+  const allDone = last.matches.every(m=>m.winner);
+  const isFinal = last.matches.length===1;
+  const cols = t.topBracket.map((rnd,ri)=>{
+    const active = ri===t.topBracket.length-1;
+    const name = rnd.matches.length===1?'Final':rnd.matches.length===2?'Semifinal':rnd.matches.length===4?'Quartas':'Fase '+(ri+1);
+    return `<div class="bc"><div class="bct">${name}</div>
+    ${rnd.matches.map(m=>`<div class="bm">
+      <div class="bp ${m.winner==='p1'?'bwin':m.winner||!active?'bna':''}" onclick="${active&&!m.winner?`setTC('${m.id}','p1')`:''}">${m.seed1?`<span class="bps">${m.seed1}</span>`:''}<span class="bpn">${m.p1?esc(m.p1.name):'TBD'}</span>${m.winner==='p1'?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}</div>
+      <div class="bp ${m.winner==='p2'?'bwin':m.winner||!active?'bna':''}" onclick="${active&&!m.winner?`setTC('${m.id}','p2')`:''}">${m.seed2?`<span class="bps">${m.seed2}</span>`:''}<span class="bpn">${m.p2?esc(m.p2.name):'TBD'}</span>${m.winner==='p2'?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}</div>
+    </div>`).join('')}</div>`;
+  }).join('');
+  return `
+<div class="fx sb2 mb16">
+  <h2>Top ${t.settings.topCutSize}</h2>
+  <button class="btn btn-p" ${allDone?'':'disabled'} onclick="advanceTC()">
+    ${isFinal?'Finalizar torneio':'Próxima fase'} <i class="ti ti-arrow-right"></i>
+  </button>
+</div>
+<div class="bracket">${cols}</div>`;
+}
+
+function renderFinished(t) {
+  const stand = getStandings(t.players, t.rounds);
+  return `
+<div class="fx sb2 mb16"><h2>Resultado final</h2>
+  <button class="btn btn-sm" onclick="exportTour('${t.id}')"><i class="ti ti-download"></i> Exportar</button>
+</div>
+<div class="sgrid mb16">
+  <div class="sc"><div class="sv">${t.players.length}</div><div class="sl">Jogadores</div></div>
+  <div class="sc"><div class="sv">${t.settings.totalRounds}</div><div class="sl">Rodadas</div></div>
+  <div class="sc"><div class="sv">${t.settings.topCutSize||'—'}</div><div class="sl">Top cut</div></div>
+  <div class="sc"><div class="sv">${esc(t.city||'—')}</div><div class="sl">Cidade</div></div>
+</div>
+${standTable(stand, t)}`;
+}
+
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
