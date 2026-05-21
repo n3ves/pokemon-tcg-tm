@@ -86,6 +86,31 @@ function clearTourPlayers() {
 }
 
 /* Add player to tournament being created (before createTour) */
+function setCTMode(mode) {
+  saveCTFormState();
+  G._ctd = G._ctd || {};
+  G._ctd.mode = mode;
+  if (mode === 'lc')      G._ctd.topCutSize = 0;
+  else if (mode === 'cup') G._ctd.topCutSize = 8;
+  else if (mode === 'one') G._ctd.topCutSize = 8;
+  render();
+}
+
+function onCTRoundsChange(val) {
+  G._ctd = G._ctd || {};
+  G._ctd.totalRounds = val === 'auto' ? 'auto' : val === 'custom' ? 'custom' : Number(val);
+  if (val === 'custom') {
+    const existing = document.getElementById('ct-rounds-custom');
+    if (!existing) {
+      const sel = document.getElementById('ct-rounds');
+      const inp = document.createElement('input');
+      inp.type='number'; inp.id='ct-rounds-custom'; inp.min=3; inp.max=15; inp.value=3;
+      inp.style.marginTop='6px'; inp.placeholder='Mínimo 3';
+      sel.parentNode.appendChild(inp);
+    }
+  }
+}
+
 function saveCTFormState() {
   if (G.view !== 'ctour') return;
   G._ctd = G._ctd || {};
@@ -2234,6 +2259,7 @@ Object.assign(window, {
   exportTour, importTour, exportCSV, exportPlayerCSV, exportTDF, importTDF,
   closeM: () => { G.modal=null; render(); },
   openEditTourModal, saveEditTour, toggleDeckList, saveCTFormState, _refreshCTPlayerPanel,
+  setCTMode, onCTRoundsChange,
   isLoggedIn, requireAuth, doSignIn, doSignOut,
   clearTourPlayers, ctAddPlayer, ctRemovePlayer, renderCTPlayerSearch,
   regDBPage, refreshRegDB, regSearchEnter,
