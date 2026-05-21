@@ -84,11 +84,13 @@ const SB_URL = 'https://dlzfxzkvcdycvovnqeya.supabase.co';
 const SB_KEY = 'sb_publishable_D7HJx2dydwnyZtgbf-tOOw_YvEDMfgs';
 
 async function sbFetch(method, table, body, qs = '') {
+  // Use user JWT when logged in, otherwise fall back to anon key (read-only)
+  const token = (typeof G !== 'undefined' && G?.auth?.token) ? G.auth.token : SB_KEY;
   const res = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, {
     method,
     headers: {
       'apikey':        SB_KEY,
-      'Authorization': `Bearer ${SB_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type':  'application/json',
       'Prefer':        'return=representation,resolution=merge-duplicates',
     },
