@@ -279,159 +279,169 @@ function recCut(n, mode) {
 }
 
 /* ════════════════════════════════════════════════════════
-   SUPABASE REALTIME — WebSocket leve, sem SDK
-   Escuta INSERT/UPDATE/DELETE em players, tournaments, venues
-   e atualiza G diretamente, re-renderizando só se necessário
+   SUPABASE REALTIME — WebSocket nativo (protocolo v2)
 ════════════════════════════════════════════════════════ */
 const SBRealtime = (function () {
-  const WS_URL = SB_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
-  const TABLES  = ['players', 'tournaments', 'venues'];
-  const RECONNECT_MS = [1000, 2000, 5000, 10000, 30000]; // backoff
+  // Supabase Realtime usa o protocolo Phoenix/WebSocket
+  // URL: wss://<project>.supabase.co/realtime/v1/websocket
+  const TABLES        = ['players', 'tournaments', 'venues'];
+  const RECONNECT_MS  = [1000, 2000, 5000, 10000, 30000];
   let ws        = null;
-  let refMap    = {};   // ref → resolve callback (heartbeat/join acks)
-  let refCount  = 0;
-  let reconnTry = 0;
+  let ref       = 0;
   let hbTimer   = null;
   let active    = false;
+  let reconnTry = 0;
 
-  function nextRef() { return String(++refCount); }
+  function nextRef() { return String(++ref); }
+
+  function getWsUrl() {
+    // Inclui token do utilizador se disponível; fallback para anon key
+    const token = (typeof G !== 'undefined' && G && G.auth && G.auth.token)
+      ? G.auth.token : SB_KEY;
+    return SB_URL.replace('https://', 'wss://')
+      + '/realtime/v1/websocket?apikey=' + SB_KEY
+      + '&vsn=1.0.0';
+  }
 
   function send(obj) {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(obj));
+    }
   }
 
-  function heartbeat() {
-    send({ topic:'phoenix', event:'heartbeat', payload:{}, ref: nextRef() });
-  }
-
-  function subscribe(table) {
-    const ref = nextRef();
+  function joinChannel(table) {
+    // Formato Phoenix channel join para Supabase Realtime v2
     send({
       topic:   'realtime:public:' + table,
       event:   'phx_join',
       payload: {
         config: {
-          broadcast:  { self: false },
-          presence:   { key: '' },
+          broadcast:        { self: false },
+          presence:         { key: '' },
           postgres_changes: [{ event: '*', schema: 'public', table: table }],
         },
       },
-      ref: ref,
+      ref: nextRef(),
     });
   }
 
   function applyChange(table, eventType, newRow, oldRow) {
-    if (typeof G === 'undefined') return;
+    if (typeof G === 'undefined' || typeof render !== 'function') return;
     let changed = false;
 
     if (table === 'players') {
       if (eventType === 'DELETE') {
-        const id = oldRow && oldRow.id;
-        if (id) { G.players = G.players.filter(p => p.id !== id); changed = true; }
-      } else {
+        const id = (oldRow || {}).id;
+        if (id) { G.players = G.players.filter(function(p) { return p.id !== id; }); changed = true; }
+      } else if (newRow) {
         const p = SB.rowP(newRow);
-        const idx = G.players.findIndex(x => x.id === p.id);
+        const idx = G.players.findIndex(function(x) { return x.id === p.id; });
         if (idx >= 0) { G.players[idx] = p; } else { G.players.push(p); }
         changed = true;
       }
     }
 
-    if (table === 'tournaments') {
+    else if (table === 'tournaments') {
       if (eventType === 'DELETE') {
-        const id = oldRow && oldRow.id;
-        if (id) { G.tours = G.tours.filter(t => t.id !== id); changed = true; }
-      } else {
-        // Full row comes in full_state — reuse rowT mapper
-        const t = SB.rowT(newRow);
-        // Preserve local timer state if same tournament is open
-        const existing = G.tours.find(x => x.id === t.id);
-        if (existing) {
-          t._timer   = existing._timer;
-          t._timerOn = existing._timerOn;
-        }
-        const idx = G.tours.findIndex(x => x.id === t.id);
-        if (idx >= 0) { G.tours[idx] = t; } else { G.tours.push(t); }
+        const id = (oldRow || {}).id;
+        if (id) { G.tours = G.tours.filter(function(t) { return t.id !== id; }); changed = true; }
+      } else if (newRow) {
+        const incoming = SB.rowT(newRow);
+        const existing = G.tours.find(function(x) { return x.id === incoming.id; });
+        // Preserva timer local se for o torneio activo
+        if (existing) { incoming._timer = existing._timer; incoming._timerOn = existing._timerOn; }
+        const idx = G.tours.findIndex(function(x) { return x.id === incoming.id; });
+        if (idx >= 0) { G.tours[idx] = incoming; } else { G.tours.push(incoming); }
         changed = true;
       }
     }
 
-    if (table === 'venues') {
+    else if (table === 'venues') {
       if (eventType === 'DELETE') {
-        const id = oldRow && oldRow.id;
-        if (id) { G.venues = G.venues.filter(v => v.id !== id); changed = true; }
-      } else {
+        const id = (oldRow || {}).id;
+        if (id) { G.venues = G.venues.filter(function(v) { return v.id !== id; }); changed = true; }
+      } else if (newRow) {
         const v = SB.rowV(newRow);
-        const idx = G.venues.findIndex(x => x.id === v.id);
+        const idx = G.venues.findIndex(function(x) { return x.id === v.id; });
         if (idx >= 0) { G.venues[idx] = v; } else { G.venues.push(v); }
         changed = true;
       }
     }
 
-    if (changed && typeof render === 'function') {
-      // Se estamos a ver o torneio que acabou de mudar, não re-renderiza
-      // a não ser que seja o torneio actual (para não interromper acções do utilizador)
-      const isEditingThisTour = (
-        table === 'tournaments' &&
-        G.view === 'tournament' &&
-        G.tourId === (newRow && newRow.id) &&
-        G.auth   // só quem está a editar
-      );
-      if (!isEditingThisTour) {
-        console.log('[Realtime]', eventType, table, (newRow||oldRow)?.id?.slice(0,8));
-        render();
-      }
+    if (!changed) return;
+
+    // Não re-renderiza se o utilizador logado está a editar exactamente este torneio
+    const amEditing = (
+      table === 'tournaments' && newRow &&
+      G.view === 'tournament' && G.tourId === newRow.id && G.auth
+    );
+    if (!amEditing) {
+      console.log('[Realtime]', eventType, table, ((newRow || oldRow) || {}).id || '');
+      render();
     }
   }
 
   function onMessage(raw) {
-    let msg;
-    try { msg = JSON.parse(raw); } catch(_) { return; }
+    var msg;
+    try { msg = JSON.parse(raw); } catch (e) { return; }
 
-    // ACK de heartbeat / join
-    if (msg.event === 'phx_reply') return;
-    if (msg.event === 'phx_error') {
-      console.warn('[Realtime] channel error:', msg.payload);
+    var event   = msg.event;
+    var payload = msg.payload || {};
+
+    // Heartbeat reply / join ack → ignorar
+    if (event === 'phx_reply' || event === 'phx_close') return;
+
+    // Erro de canal
+    if (event === 'phx_error') {
+      console.warn('[Realtime] canal erro:', payload);
       return;
     }
 
-    // Dados reais chegam como postgres_changes
-    if (msg.event === 'postgres_changes') {
-      const payload = msg.payload;
-      const table   = payload.table;
-      const etype   = payload.type;   // INSERT | UPDATE | DELETE
-      const newRow  = payload.record;
-      const oldRow  = payload.old_record;
-      applyChange(table, etype, newRow, oldRow);
+    // Supabase v2: dados chegam no evento "postgres_changes" com
+    //   payload.data.type, payload.data.table, payload.data.record, payload.data.old_record
+    // OU directamente no payload (v1 compat)
+    var data = payload.data || payload;
+    var etype = data.type   || data.eventType;
+    var table = data.table;
+    var rec   = data.record     || data.new;
+    var old   = data.old_record || data.old;
+
+    if (table && etype) {
+      applyChange(table, etype, rec, old);
     }
   }
 
   function connect() {
-    if (ws) { try { ws.close(); } catch(_) {} }
-    ws = new WebSocket(WS_URL);
+    if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+    var url = getWsUrl();
+    try { ws = new WebSocket(url); } catch (e) {
+      console.warn('[Realtime] WebSocket não suportado:', e);
+      return;
+    }
 
     ws.onopen = function () {
       console.log('[Realtime] conectado');
       reconnTry = 0;
-      // Subscribe a todas as tabelas
-      TABLES.forEach(subscribe);
-      // Heartbeat a cada 30s
+      TABLES.forEach(joinChannel);
       clearInterval(hbTimer);
-      hbTimer = setInterval(heartbeat, 30000);
+      hbTimer = setInterval(function () {
+        send({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: nextRef() });
+      }, 25000);
       if (typeof setSyncStatus === 'function') setSyncStatus('ok');
     };
 
     ws.onmessage = function (e) { onMessage(e.data); };
 
     ws.onerror = function (e) {
-      console.warn('[Realtime] WebSocket error', e);
+      console.warn('[Realtime] erro WebSocket');
     };
 
-    ws.onclose = function (e) {
+    ws.onclose = function () {
       clearInterval(hbTimer);
-      if (!active) return; // parado intencionalmente
-      const delay = RECONNECT_MS[Math.min(reconnTry, RECONNECT_MS.length - 1)];
+      if (!active) return;
+      var delay = RECONNECT_MS[Math.min(reconnTry, RECONNECT_MS.length - 1)];
       reconnTry++;
-      console.warn('[Realtime] desconectado, reconectando em ' + delay + 'ms...');
+      console.warn('[Realtime] desconectado — reconectando em ' + delay + 'ms');
       if (typeof setSyncStatus === 'function') setSyncStatus('offline');
       setTimeout(connect, delay);
     };
@@ -446,7 +456,12 @@ const SBRealtime = (function () {
     stop: function () {
       active = false;
       clearInterval(hbTimer);
-      if (ws) { try { ws.close(); } catch(_) {} ws = null; }
+      if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+    },
+    // Força re-subscribe (útil após refresh de token)
+    reconnect: function () {
+      reconnTry = 0;
+      connect();
     },
   };
 })();

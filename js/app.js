@@ -2821,7 +2821,21 @@ function renderCreateTour() {
       <strong>${m.name}</strong><div class="small muted">${m.desc}</div></div>`).join('')}
   </div>
   <div class="g2">
-    <div class="f"><label>Rodadas Swiss</label><input type="number" id="ct-rounds" min="1" max="15" value="${d.totalRounds||4}" oninput="G._ctd=G._ctd||{};G._ctd.totalRounds=Number(this.value)"></div>
+    <div class="f"><label>Rodadas Swiss</label>
+      <select id="ct-rounds" onchange="onCTRoundsChange(this.value)">
+        <option value="auto"   ${(!d.totalRounds||d.totalRounds==='auto')?'selected':''}>Automático (recomendado)</option>
+        <option value="3"  ${ d.totalRounds===3 ?'selected':''}>3 rodadas</option>
+        <option value="4"  ${ d.totalRounds===4 ?'selected':''}>4 rodadas</option>
+        <option value="5"  ${ d.totalRounds===5 ?'selected':''}>5 rodadas</option>
+        <option value="6"  ${ d.totalRounds===6 ?'selected':''}>6 rodadas</option>
+        <option value="7"  ${ d.totalRounds===7 ?'selected':''}>7 rodadas</option>
+        <option value="8"  ${ d.totalRounds===8 ?'selected':''}>8 rodadas</option>
+        <option value="9"  ${ d.totalRounds===9 ?'selected':''}>9 rodadas</option>
+        <option value="custom" ${d.totalRounds==='custom'?'selected':''}>Personalizado...</option>
+      </select>
+      ${(d.totalRounds && d.totalRounds!=='auto' && d.totalRounds!=='custom' && ![3,4,5,6,7,8,9].includes(Number(d.totalRounds)))
+        ? `<input type="number" id="ct-rounds-custom" min="3" max="15" value="${d.totalRounds}" style="margin-top:6px">` : ''}
+    </div>
     <div class="f"><label>Top Cut</label><select id="ct-cut" onchange="G._ctd=G._ctd||{};G._ctd.topCutSize=Number(this.value)">
       <option value="0" ${(d.topCutSize||0)===0?'selected':''}>Sem top cut</option>
       <option value="4" ${(d.topCutSize||0)===4?'selected':''}>Top 4</option>
@@ -3312,7 +3326,15 @@ function renderEditTourModal() {
 <div class="sep"></div>
 <div class="g2">
   <div class="f"><label>Rodadas Swiss</label>
-    <input type="number" id="et-rounds" min="1" max="15" value="${t.settings.totalRounds||4}" ${t.status!=='registration'?'disabled title="Torneio em andamento"':''}>
+    <select id="et-rounds" ${t.status!=='registration'?'disabled title="Torneio em andamento"':''}>
+      <option value="3"  ${t.settings.totalRounds===3 ?'selected':''}>3 rodadas</option>
+      <option value="4"  ${t.settings.totalRounds===4 ?'selected':''}>4 rodadas</option>
+      <option value="5"  ${t.settings.totalRounds===5 ?'selected':''}>5 rodadas</option>
+      <option value="6"  ${t.settings.totalRounds===6 ?'selected':''}>6 rodadas</option>
+      <option value="7"  ${t.settings.totalRounds===7 ?'selected':''}>7 rodadas</option>
+      <option value="8"  ${t.settings.totalRounds===8 ?'selected':''}>8 rodadas</option>
+      <option value="9"  ${t.settings.totalRounds===9 ?'selected':''}>9 rodadas</option>
+    </select>
   </div>
   <div class="f"><label>Top Cut</label>
     <select id="et-cut" ${t.status!=='registration'?'disabled':''}>
