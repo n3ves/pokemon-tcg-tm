@@ -83,22 +83,65 @@ const R    = { P1:'p1', P2:'p2', TIE:'tie', DL:'dl', BYE:'bye' };
 const SB_URL = 'https://dlzfxzkvcdycvovnqeya.supabase.co';
 const SB_KEY = 'sb_publishable_D7HJx2dydwnyZtgbf-tOOw_YvEDMfgs';
 
-async function sbFetch(method, table, body, qs = '') {
-  // Use user JWT when logged in, otherwise fall back to anon key (read-only)
-  const token = (typeof G !== 'undefined' && G?.auth?.token) ? G.auth.token : SB_KEY;
-  const res = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, {
-    method,
-    headers: {
+async function _sbRefreshToken() {
+  const auth = (typeof G !== 'undefined') ? G.auth : null;
+  if (!auth || !auth.refreshToken) return false;
+  try {
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey': SB_KEY },
+      body: JSON.stringify({ refresh_token: auth.refreshToken }),
+    });
+    if (!r.ok) return false;
+    const data = await r.json();
+    if (!data.access_token) return false;
+    G.auth.token = data.access_token;
+    if (data.refresh_token) G.auth.refreshToken = data.refresh_token;
+    try { localStorage.setItem('ptcg_auth', JSON.stringify(G.auth)); } catch(_) {}
+    console.log('[sbFetch] Token refreshed OK');
+    return true;
+  } catch(e) {
+    console.warn('[sbFetch] Refresh failed:', e);
+    return false;
+  }
+}
+
+async function sbFetch(method, table, body, qs) {
+  if (qs === undefined) qs = '';
+  const getToken = function() {
+    return (typeof G !== 'undefined' && G && G.auth && G.auth.token) ? G.auth.token : SB_KEY;
+  };
+  const makeHeaders = function(token) {
+    return {
       'apikey':        SB_KEY,
-      'Authorization': `Bearer ${token}`,
+      'Authorization': 'Bearer ' + token,
       'Content-Type':  'application/json',
       'Prefer':        'return=representation,resolution=merge-duplicates',
-    },
-    body: body != null ? JSON.stringify(body) : undefined,
+    };
+  };
+  const bodyStr = body != null ? JSON.stringify(body) : undefined;
+
+  let res = await fetch(SB_URL + '/rest/v1/' + table + qs, {
+    method: method,
+    headers: makeHeaders(getToken()),
+    body: bodyStr,
   });
+
+  // JWT expirado -> refresh e tenta novamente
+  if (res.status === 401) {
+    const refreshed = await _sbRefreshToken();
+    if (refreshed) {
+      res = await fetch(SB_URL + '/rest/v1/' + table + qs, {
+        method: method,
+        headers: makeHeaders(getToken()),
+        body: bodyStr,
+      });
+    }
+  }
+
   if (!res.ok) {
-    const msg = await res.text().catch(() => res.statusText);
-    throw new Error(`${method} /${table}: ${res.status} — ${msg.slice(0,120)}`);
+    const msg = await res.text().catch(function() { return res.statusText; });
+    throw new Error(method + ' /' + table + ': ' + res.status + ' — ' + msg.slice(0,120));
   }
   if (res.status === 204) return null;
   return res.json();
@@ -173,9 +216,41 @@ const SB = {
     headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` },
   }).then(r => r.json()),
 
+  vRow: v => ({
+    id:               v.id,
+    name:             v.name             || null,
+    nickname:         v.nickname         || null,
+    address:          v.address          || null,
+    city:             v.city             || null,
+    state:            v.state            || null,
+    zip:              v.zip              || null,
+    responsible:      v.responsible      || null,
+    contact:          v.contact          || null,
+    notes:            v.notes            || null,
+    active:           v.active !== false,
+    organizer_name:   v.organizerName    || null,
+    organizer_popid:  v.organizerPopId   || null,
+  }),
+  rowV: r => ({
+    id:             r.id,
+    name:           r.name          || '',
+    nickname:       r.nickname      || '',
+    address:        r.address       || '',
+    city:           r.city          || '',
+    state:          r.state         || '',
+    zip:            r.zip           || '',
+    responsible:    r.responsible   || '',
+    contact:        r.contact       || '',
+    notes:          r.notes         || '',
+    active:         r.active !== false,
+    organizerName:  r.organizer_name  || '',
+    organizerPopId: r.organizer_popid || '',
+    createdAt:      r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+  }),
+
   loadVenues:    ()  => sbFetch('GET','venues',null,'?order=name.asc'),
-  saveVenue:     v   => sbFetch('POST','venues',v),
-  deleteVenue:   id  => sbFetch('DELETE','venues',null,`?id=eq.${id}`),
+  saveVenue:     v   => sbFetch('POST','venues',SB.vRow(v)),
+  deleteVenue:   id  => sbFetch('DELETE','venues',null,'?id=eq.'+id),
 
   loadTournaments: () => sbFetch('GET','tournaments',null,
     '?select=id,name,city,state,date,mode,status,current_round,settings,timer_seconds,top_bracket,full_state,created_at&order=created_at.desc'),

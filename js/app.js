@@ -313,7 +313,7 @@ async function doSignIn() {
     notify(res.error?.message || 'Credenciais inválidas','err');
     return;
   }
-  G.auth = { token: res.access_token, email: res.user?.email || email };
+  G.auth = { token: res.access_token, refreshToken: res.refresh_token||null, email: res.user?.email || email };
   localStorage.setItem('ptcg_auth', JSON.stringify(G.auth));
   closeM();
   notify(`Logado como ${G.auth.email}`,'ok');
@@ -3575,7 +3575,7 @@ async function init() {
 
     G.players = (sbPlayers || []).map(SB.rowP);
     G.tours   = (sbTours   || []).map(SB.rowT);
-    G.venues  = sbVenues || [];
+    G.venues  = (sbVenues || []).map(SB.rowV);
 
     DB.save(SK.PL, G.players);
     DB.save(SK.TN, G.tours);
