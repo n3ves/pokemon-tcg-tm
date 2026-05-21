@@ -1949,16 +1949,47 @@ function addFromDB(gid) {
   const gp=G.players.find(p=>p.id===gid); if(!gp)return;
   if (t.players.some(p=>p.gid===gid)) return notify('Já registrado','warn');
   t.players.push({id:uid(),gid,name:gp.name,division:gp.division,dropped:false,dq:false,hadBye:false});
-  saveAll(); render();
-  // Clear search
-  const inp=document.getElementById('reg-q'); if(inp){inp.value='';} const r=document.getElementById('reg-res'); if(r)r.innerHTML='';
-  notify(`${gp.name} adicionado`,'ok');
-  // Refresh DB list without full re-render
-  setTimeout(()=>{
-    const t2=ct();
-    const el=document.getElementById('reg-db-list');
-    if(el&&t2) el.innerHTML=renderRegDBList(t2,_regDBFilter,_regDBPage);
-  },50);
+  saveAll();
+  // Limpa search
+  const inp=document.getElementById('reg-q'); if(inp) inp.value='';
+  const res=document.getElementById('reg-res'); if(res) res.innerHTML='';
+  notify(gp.name+' adicionado','ok');
+  // Atualiza só os dois painéis no DOM — sem render() completo
+  _refreshRegPlayerList(t);
+  _updateRegHeader(t);
+  // Refresca banco (remove o jogador que acabou de entrar)
+  const dbEl = document.getElementById('reg-db-list');
+  if (dbEl) dbEl.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+}
+
+function _refreshRegPlayerList(t) {
+  const el = document.getElementById('reg-player-list');
+  if (!el) { render(); return; }
+  if (!t.players.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador</p></div>';
+    return;
+  }
+  el.innerHTML = t.players.map((p,i) =>
+    '<div class="plr">' +
+    '<span class="mono muted" style="min-width:24px">' + (i+1) + '</span>' +
+    '<span style="flex:1">' + esc(p.name) + '</span>' + dbadge(p.division) +
+    '<button class="ib" onclick="removeFromTour(\'' + p.id + '\')"><i class="ti ti-x"></i></button>' +
+    '</div>'
+  ).join('');
+}
+
+function _updateRegHeader(t) {
+  const el = document.getElementById('reg-header-badges');
+  if (!el) return;
+  const byDiv = DIVS.map(d=>({d,c:t.players.filter(p=>p.division===d).length})).filter(x=>x.c>0);
+  const rec = recRounds(t.players.length);
+  const cut = recCut(t.players.length, t.settings?.mode);
+  el.innerHTML =
+    byDiv.map(({d,c}) => '<span class="badge ' + DC[d] + '">' + d[0] + ': ' + c + '</span>').join('') +
+    (t.players.length > 0 ? '<span class="muted small">' + rec + ' rodadas · ' + (cut ? 'Top '+cut : 'Sem top cut') + '</span>' : '');
+  // Habilita/desabilita botão iniciar
+  const btn = document.getElementById('reg-start-btn');
+  if (btn) btn.disabled = t.players.length < 2;
 }
 
 function addBulk() {
@@ -1971,11 +2002,18 @@ function addBulk() {
     if(!gp){gp={id:uid(),name,division:div,createdAt:Date.now(),nickname:'',playerId:'',city:'',state:'',birthDate:'',contact:'',notes:''};G.players.push(gp);}
     if(!t.players.some(p=>p.gid===gp.id)){t.players.push({id:uid(),gid:gp.id,name:gp.name,division:div,dropped:false,dq:false,hadBye:false});added++;}
   });
-  saveAll(); notify(`${added} jogador${added!==1?'es':''} adicionado${added!==1?'s':''}`,'ok'); render();
+  saveAll(); notify(added + ' jogador' + (added!==1?'es':'') + ' adicionado' + (added!==1?'s':''),'ok');
+  const _tb=ct(); if(_tb){_refreshRegPlayerList(_tb);_updateRegHeader(_tb);}
 }
 
 function removeFromTour(pid) {
-  mtour(t=>{ t.players=t.players.filter(p=>p.id!==pid); });
+  mtour(t=>{
+    t.players = t.players.filter(p=>p.id!==pid);
+    _refreshRegPlayerList(t);
+    _updateRegHeader(t);
+    const dbEl = document.getElementById('reg-db-list');
+    if (dbEl) dbEl.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+  });
 }
 
 function startTour() {
@@ -2965,41 +3003,65 @@ function renderReg(t) {
 <div class="fx sb2 mb16">
   <div>
     <h2 class="mb4">Registro de jogadores</h2>
-    <div class="fx gap6">
+    <div class="fx gap6" id="reg-header-badges">
       ${byDiv.map(({d,c})=>`<span class="badge ${DC[d]}">${d[0]}: ${c}</span>`).join('')}
       ${n>0?`<span class="muted small">${rec} rodadas · ${cut?'Top '+cut:'Sem top cut'}</span>`:''}
     </div>
   </div>
-  ${t.status==='registration'?`<button class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
+  ${t.status==='registration'?`<button id="reg-start-btn" class="btn btn-p" ${n<2?'disabled':''} onclick="startTour()">
     <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
 </div>
 ${t.status==='registration'?`
-<div class="g2 gap16">
-  <div class="card">
-    <h3 class="mb12">Adicionar jogador</h3>
-    <div class="f"><label>Buscar banco de dados</label>
-      <div class="fx gap6">
-        <input id="reg-q" placeholder="Nome, ID..." style="flex:1" oninput="renderRegSearch(this.value)">
-        <button class="btn btn-sm" onclick="openPModal(null,true)"><i class="ti ti-plus"></i></button>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <!-- BANCO DE JOGADORES -->
+  <div class="card p0" style="display:flex;flex-direction:column;max-height:520px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--bd);flex-shrink:0">
+      <div class="fx sb2 mb8">
+        <h3>Banco de jogadores</h3>
+        <button class="btn btn-xs" onclick="openPModal(null,true)"><i class="ti ti-plus"></i> Novo</button>
+      </div>
+      <div class="sw">
+        <i class="ti ti-search"></i>
+        <input id="reg-q" placeholder="Filtrar..." oninput="filterRegDB(this.value)">
       </div>
     </div>
-    <div id="reg-res"></div>
-    <div class="sep"></div>
-    <p class="muted small mb8">Múltiplos (um por linha):</p>
-    <textarea id="bulk-in" style="height:80px" placeholder="João Silva&#10;Maria Santos"></textarea>
-    <div class="fx gap8 mt8">
-      <select id="bulk-div">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
-      <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
+    <div id="reg-db-list" style="overflow-y:auto;flex:1">
+      ${renderRegDBList(t,'',0)}
+    </div>
+    <div style="padding:8px 16px;border-top:1px solid var(--bd);flex-shrink:0">
+      <details>
+        <summary class="muted small" style="cursor:pointer">Adicionar múltiplos (bulk)</summary>
+        <div class="mt8">
+          <textarea id="bulk-in" style="height:64px;width:100%" placeholder="João Silva&#10;Maria Santos"></textarea>
+          <div class="fx gap8 mt6">
+            <select id="bulk-div" style="flex:1">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
+            <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
-  <div class="card p0" style="max-height:420px;overflow-y:auto">
-    ${n===0?`<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador</p></div>`:
-    t.players.map((p,i)=>`<div class="plr">
-      <span class="mono muted" style="min-width:24px">${i+1}</span>
-      <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
-      <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
-    </div>`).join('')}
+
+  <!-- INSCRITOS NO TORNEIO -->
+  <div class="card p0" style="display:flex;flex-direction:column;max-height:520px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--bd);flex-shrink:0">
+      <div class="fx sb2">
+        <h3>Inscritos <span class="badge bn">${n}</span></h3>
+        ${n>0?`<button class="btn btn-xs btn-d" onclick="if(confirm('Remover todos?')){mtour(t=>{t.players=[];});}" title="Limpar lista"><i class="ti ti-trash"></i></button>`:''}
+      </div>
+    </div>
+    <div id="reg-player-list" style="overflow-y:auto;flex:1">
+      ${n===0
+        ?`<div class="empty"><i class="ti ti-users"></i><p>Clique nos jogadores ao lado para inscrever</p></div>`
+        :t.players.map((p,i)=>`<div class="plr">
+          <span class="mono muted" style="min-width:22px;font-size:11px">${i+1}</span>
+          <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
+          <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
+        </div>`).join('')}
+    </div>
   </div>
+
 </div>`:`
 <div class="card p0">
 ${t.players.map((p,i)=>`<div class="plr">
@@ -3009,6 +3071,14 @@ ${t.players.map((p,i)=>`<div class="plr">
   ${p.dq?`<span class="badge bd">DQ</span>`:''}
 </div>`).join('')}
 </div>`}`;
+}
+
+function filterRegDB(q) {
+  _regDBFilter = q;
+  _regDBPage = 0;
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('reg-db-list');
+  if (el) el.innerHTML = renderRegDBList(t, q, 0);
 }
 
 function renderRegDBList(t, filter, page) {
