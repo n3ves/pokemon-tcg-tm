@@ -2368,6 +2368,166 @@ function updateDecksList(q) {
   }
 }
 
+
+/* ════════════════════════════════════════════════════════
+   RESTORED FUNCTIONS — lost during refactor
+════════════════════════════════════════════════════════ */
+
+function renderRegSearch(q) {
+  const el = document.getElementById('reg-res');
+  if (!el) return;
+  if (!q || q.length < 1) { el.innerHTML=''; return; }
+  const t = ct(); if (!t) return;
+  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
+  const found = G.players.filter(p => !have.has(p.id) && (
+    norm(p.name).includes(norm(q)) ||
+    norm(p.playerId||'').includes(norm(q))
+  )).slice(0, 6);
+  el.innerHTML = found.length === 0
+    ? `<p class="muted small mt8">Sem resultados. <button class="btn btn-xs" onclick="openPModal(null,true)">Criar novo</button></p>`
+    : `<div class="card p0 mt8">${found.map(p=>`
+      <div class="plr" style="padding:8px 12px" onclick="addFromDB('${p.id}');document.getElementById('reg-q').value='';document.getElementById('reg-res').innerHTML=''">
+        <div style="flex:1">
+          <div style="font-size:13px">${esc(p.name)}</div>
+          <div class="muted small">${p.division}${p.playerId?' · <span class="mono">'+esc(p.playerId)+'</span>':''}</div>
+        </div>
+        ${dbadge(p.division)}
+        <i class="ti ti-plus muted"></i>
+      </div>`).join('')}</div>`;
+}
+
+function regSearchEnter() {
+  const q = document.getElementById('reg-q')?.value?.trim();
+  if (!q) return;
+  const t = ct(); if (!t) return;
+  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
+  const found = G.players.filter(p => !have.has(p.id) && (
+    norm(p.name).startsWith(norm(q)) || norm(p.playerId||'') === norm(q)
+  ));
+  if (found.length === 1) { addFromDB(found[0].id); document.getElementById('reg-q').value=''; }
+}
+
+let _regDBPage = 0, _regDBFilter = '';
+
+function refreshRegDB(filter) {
+  _regDBFilter = filter || '';
+  _regDBPage = 0;
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('reg-db-list');
+  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+}
+
+function regDBPage(pg) {
+  _regDBPage = pg;
+  const t = ct(); if (!t) return;
+  const el = document.getElementById('reg-db-list');
+  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
+}
+
+function toggleDeckList(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+function updateVenuesList(q) {
+  G.search = q;
+  const nq = norm(q);
+  const list = G.venues
+    .filter(v => !nq || norm(v.name).includes(nq) || norm(v.city||'').includes(nq) || norm(v.responsible||'').includes(nq))
+    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
+  const el = document.getElementById('venues-list');
+  if (el) el.innerHTML = renderVenueRows(list);
+}
+
+function openVenueModal(id) {
+  G.modal = { type:'venue', id }; render();
+}
+
+async function saveVenueModal(id) {
+  if (!requireAuth()) return;
+  const name = document.getElementById('vm-name')?.value?.trim();
+  if (!name) return notify('Nome é obrigatório','err');
+  const data = {
+    id:           id || uid(),
+    name,
+    nickname:     document.getElementById('vm-nick')?.value?.trim()||null,
+    address:      document.getElementById('vm-addr')?.value?.trim()||null,
+    city:         document.getElementById('vm-city')?.value?.trim()||null,
+    state:        document.getElementById('vm-state')?.value?.trim()||null,
+    zip:          document.getElementById('vm-zip')?.value?.trim()||null,
+    responsible:  document.getElementById('vm-resp')?.value?.trim()||null,
+    contact:      document.getElementById('vm-contact')?.value?.trim()||null,
+    notes:        document.getElementById('vm-notes')?.value?.trim()||null,
+    active:       document.getElementById('vm-active')?.checked ?? true,
+    organizerName:  document.getElementById('vm-org-name')?.value?.trim()||null,
+    organizerPopId: document.getElementById('vm-org-popid')?.value?.trim()||null,
+  };
+  if (id) {
+    G.venues = G.venues.map(v => v.id===id ? {...v,...data} : v);
+  } else {
+    G.venues.push(data);
+  }
+  DB.save('ptcg_venues_v3', G.venues);
+  SB.saveVenue(data).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
+  closeM();
+  notify('Local salvo','ok');
+}
+
+function deleteVenue(id) {
+  if (!requireAuth()) return;
+  if (!confirm('Excluir este local? Os torneios vinculados perderão a referência.')) return;
+  G.venues = G.venues.filter(v=>v.id!==id);
+  DB.save('ptcg_venues_v3', G.venues);
+  SB.deleteVenue(id).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
+  notify('Local excluído');
+  nav('venues');
+}
+
+function openArchModal(name) {
+  G.modal = { type:'arch', name: name||'' }; render();
+}
+
+function saveArchModal(oldName) {
+  if (!requireAuth()) return;
+  const name = document.getElementById('arch-name')?.value?.trim();
+  if (!name) return notify('Informe o nome','warn');
+  G.settings.archetypes = G.settings.archetypes || [];
+  if (oldName) {
+    G.tours.forEach(t => {
+      t.players.forEach(p => { if(p.deckArchetype===oldName) p.deckArchetype=name; });
+    });
+    G.settings.archetypes = G.settings.archetypes.map(a => a===oldName?name:a);
+    DB.save(SK.TN, G.tours);
+  } else {
+    if (!G.settings.archetypes.includes(name)) G.settings.archetypes.push(name);
+  }
+  G.settings.archetypes.sort((a,b)=>a.localeCompare(b,'pt'));
+  DB.save(SK.ST, G.settings);
+  closeM(); notify('Salvo','ok');
+}
+
+function deleteArchetype(name) {
+  if (!requireAuth()) return;
+  if (!confirm(`Remover "${name}" do banco? Não afeta decklists já registradas.`)) return;
+  G.settings.archetypes = (G.settings.archetypes||[]).filter(a=>a!==name);
+  DB.save(SK.ST, G.settings);
+  closeM(); notify('Removido'); render();
+}
+
+function addGlobalArchetype() {
+  if (!requireAuth()) return;
+  const name = document.getElementById('ga-name')?.value?.trim();
+  if (!name) return notify('Informe o nome do deck','warn');
+  G.settings.archetypes = G.settings.archetypes || [];
+  if (G.settings.archetypes.some(a => norm(a)===norm(name)))
+    return notify('Deck já existe','warn');
+  G.settings.archetypes.push(name);
+  G.settings.archetypes.sort((a,b) => a.localeCompare(b,'pt'));
+  DB.save(SK.ST, G.settings);
+  notify(`"${name}" adicionado`,'ok');
+  render();
+}
+
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
