@@ -333,83 +333,86 @@ function renderHome() {
   const venues     = G.venues.filter(v=>v.active!==false);
 
   return `
-<div class="mb16 fx sb2">
-  <div><h1>Dashboard</h1><p class="muted small mt4">Pokémon TCG Tournament Manager v${VER}</p></div>
-  <div class="fx gap6">
-    <button class="btn btn-p" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo torneio</button>
-    <button class="btn" onclick="importTDF()"><i class="ti ti-file-code"></i> Importar .tdf</button>
-  </div>
+<div class="mb16">
+  <h1 style="font-size:22px">Dashboard</h1>
+  <p class="muted small mt4">Jerry v${VER} — Pokémon TCG Tournament Manager</p>
 </div>
 
-<!-- Stats grid -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
-  <div class="sc" style="cursor:pointer" onclick="nav('players')">
-    <div class="sv" style="color:var(--it)">${G.players.length}</div>
-    <div class="sl">Jogadores</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+  <div class="sc" style="cursor:pointer;padding:20px 16px" onclick="nav('players')">
+    <div class="sv" style="font-size:36px;color:var(--it)">${G.players.length}</div>
+    <div class="sl" style="font-size:12px;margin-top:6px"><i class="ti ti-users"></i> Jogadores</div>
   </div>
-  <div class="sc" style="cursor:pointer;border-color:var(--st)" onclick="G.search='';nav('tours')">
-    <div class="sv" style="color:var(--st)">${finished.length}</div>
-    <div class="sl">Concluídos</div>
+  <div class="sc" style="cursor:pointer;padding:20px 16px;border-color:var(--st)" onclick="G.search='';nav('tours')">
+    <div class="sv" style="font-size:36px;color:var(--st)">${finished.length}</div>
+    <div class="sl" style="font-size:12px;margin-top:6px"><i class="ti ti-trophy"></i> Concluídos</div>
   </div>
-  <div class="sc" style="cursor:pointer;border-color:var(--wt)" onclick="G.search='';nav('tours')">
-    <div class="sv" style="color:var(--wt)">${active.length}</div>
-    <div class="sl">Em andamento</div>
+  <div class="sc" style="cursor:pointer;padding:20px 16px;border-color:var(--wt)" onclick="G.search='';nav('tours')">
+    <div class="sv" style="font-size:36px;color:var(--wt)">${active.length}</div>
+    <div class="sl" style="font-size:12px;margin-top:6px"><i class="ti ti-player-play"></i> Em andamento</div>
   </div>
-  <div class="sc" style="cursor:pointer" onclick="G.search='';nav('tours')">
-    <div class="sv" style="color:var(--t2)">${planned.length}</div>
-    <div class="sl">Planejados</div>
+  <div class="sc" style="cursor:pointer;padding:20px 16px" onclick="G.search='';nav('tours')">
+    <div class="sv" style="font-size:36px;color:var(--t2)">${planned.length}</div>
+    <div class="sl" style="font-size:12px;margin-top:6px"><i class="ti ti-calendar"></i> Planejados</div>
   </div>
-  <div class="sc" style="cursor:pointer" onclick="nav('venues')">
-    <div class="sv" style="color:var(--it)">${venues.length}</div>
-    <div class="sl">Locais</div>
+  <div class="sc" style="cursor:pointer;padding:20px 16px" onclick="nav('venues')">
+    <div class="sv" style="font-size:36px;color:var(--it)">${venues.length}</div>
+    <div class="sl" style="font-size:12px;margin-top:6px"><i class="ti ti-building-store"></i> Locais</div>
   </div>
 </div>
 
 <div class="g2 gap16">
   <div>
-    <div class="fx sb2 mb12">
+    <div class="fx sb2 mb12" style="align-items:flex-start">
       <h2>Torneios recentes</h2>
       <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-list"></i> Ver todos</button>
     </div>
     <div class="card p0">
-      ${recent.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio ainda</p></div>`:
-        recent.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
-          <div style="flex:1;min-width:0">
-            <div class="fx gap6 mb4">
-              <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</strong>
-              ${stbadge(t)}
+      ${recent.length===0
+        ?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio ainda</p></div>`
+        :recent.map(t=>`<div class="plr" onclick="openTour('${t.id}')" style="align-items:flex-start;padding:12px 16px">
+            <div style="flex:1;min-width:0">
+              <div class="fx gap6 mb4" style="flex-wrap:wrap">
+                <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</strong>
+                ${stbadge(t)}
+              </div>
+              <div class="muted small" style="margin-top:2px">
+                ${t.date?t.date+' · ':''}${t.venueId?esc(venueName(t.venueId))+' · ':''}${t.players.length} jogadores
+              </div>
             </div>
-            <div class="muted small">
-              ${t.date?t.date+' · ':''}
-              ${t.venueId?esc(venueName(t.venueId))+' · ':''}
-              ${t.players.length} jogadores
-            </div>
-          </div>
-          <i class="ti ti-chevron-right muted"></i>
-        </div>`).join('')}
-    </div>
-  </div>
-  <div class="fxc gap12">
-    <div class="card">
-      <h3 class="mb12">Ações rápidas</h3>
-      <div class="fxc gap8">
-        <button class="btn btn-p fw jc" style="padding:11px" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo torneio</button>
-        <button class="btn fw jc" style="padding:11px" onclick="nav('players')"><i class="ti ti-users"></i> Banco de jogadores</button>
-        <button class="btn fw jc" style="padding:11px" onclick="importTDF()"><i class="ti ti-file-code"></i> Importar .tdf</button>
-        <button class="btn fw jc" style="padding:11px" onclick="importTour()"><i class="ti ti-upload"></i> Importar .json</button>
-      </div>
+            <i class="ti ti-chevron-right muted" style="margin-top:2px"></i>
+          </div>`).join('')}
     </div>
     ${active.length>0?`
-    <div class="card" style="border-color:var(--wt)">
+    <div class="card mt12" style="border-color:var(--wt)">
       <div class="lbl mb8" style="color:var(--wt)"><i class="ti ti-player-play"></i> Em andamento</div>
       ${active.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
         <div style="flex:1">
-          <div class="fw-500">${esc(t.name)}</div>
+          <div style="font-weight:500">${esc(t.name)}</div>
           <div class="muted small">Rodada ${t.currentRound}/${t.settings.totalRounds} · ${t.players.filter(p=>!p.dropped&&!p.dq).length} ativos</div>
         </div>
         <i class="ti ti-arrow-right muted"></i>
       </div>`).join('')}
     </div>`:''}
+  </div>
+  <div class="fxc gap12">
+    <div class="card">
+      <h3 class="mb12">Ações rápidas</h3>
+      <div class="fxc gap8">
+        <button class="btn btn-p fw jc" style="padding:11px" onclick="nav('ctour')">
+          <i class="ti ti-plus"></i> Novo torneio
+        </button>
+        <button class="btn fw jc" style="padding:11px" onclick="importTDF()">
+          <i class="ti ti-file-code"></i> Importar campeonato (.tdf)
+        </button>
+        <button class="btn fw jc" style="padding:11px" onclick="importTour()">
+          <i class="ti ti-cloud-download"></i> Restaurar backup (.json)
+        </button>
+        <button class="btn fw jc" style="padding:11px" onclick="nav('players')">
+          <i class="ti ti-users"></i> Ver jogadores
+        </button>
+      </div>
+    </div>
   </div>
 </div>`;
 }
@@ -422,7 +425,9 @@ function renderPlayers() {
     norm(p.playerId||'').includes(q) ||
     norm(p.city||'').includes(q)
   );
+  const incomplete = G.players.filter(p => !p.playerId || !p.birthDate || !p.city);
   return `
+${incomplete.length>0?`<div class="well mb12" style="border:1px solid var(--wt);background:var(--wb);border-radius:8px;padding:10px 14px"><div class="fx gap8"><i class="ti ti-alert-triangle" style="color:var(--wt);flex-shrink:0;margin-top:2px"></i><div><strong style="font-size:13px;color:var(--wt)">${incomplete.length} perfil${incomplete.length>1?'s':''} incompleto${incomplete.length>1?'s':''}</strong><div class="small mt4" style="color:var(--wt);opacity:.85">${incomplete.slice(0,3).map(p=>esc(p.name)).join(', ')}${incomplete.length>3?' e mais '+(incomplete.length-3):''} — faltam dados como Player ID, ano de nascimento ou cidade.</div></div></div></div>`:''}
 <div class="fx sb2 mb16"><h1>Jogadores</h1>
   <div class="fx gap6">
     <button class="btn btn-sm" onclick="exportPlayers()"><i class="ti ti-download"></i> Exportar</button>
@@ -949,1014 +954,8 @@ ${filtered.length === 0 ? `
       }).join('')}
     </div>
 
-    <div class="card">
-      <div class="lbl mb10">Cadastrar deck</div>
-      <p class="muted small mb10">Pré-cadastre decks para facilitar o registro nos torneios.</p>
-      <div class="f mb8">
-        <label>Nome do deck</label>
-        <input id="ga-name" list="ga-list" placeholder="ex: Charizard ex">
-        <datalist id="ga-list">
-          ${allUsed.map(a=>`<option value="${esc(a)}">`).join('')}
-        </datalist>
-      </div>
-      <button class="btn btn-p fw jc" onclick="addGlobalArchetype()">
-        <i class="ti ti-plus"></i> Adicionar
-      </button>
-    </div>
   </div>
-
 </div>`}`;
-}
-
-function addGlobalArchetype() {
-  const name = document.getElementById('ga-name')?.value?.trim();
-  if (!name) return notify('Informe o nome do deck','warn');
-  // Store in global settings as pre-registered archetypes
-  G.settings.archetypes = G.settings.archetypes || [];
-  if (G.settings.archetypes.some(a => norm(a)===norm(name)))
-    return notify('Deck já existe','warn');
-  G.settings.archetypes.push(name);
-  G.settings.archetypes.sort((a,b) => a.localeCompare(b,'pt'));
-  DB.save(SK.ST, G.settings);
-  notify(`"${name}" adicionado`,'ok');
-  render();
-}
-
-function openArchModal(name) {
-  G.modal = { type:'arch', name: name||'' };
-  render();
-}
-
-function renderArchModal() {
-  const m = G.modal;
-  const isEdit = !!m.name;
-  return `
-<div class="mtitle"><i class="ti ti-cards"></i> ${isEdit?'Editar deck':'Novo deck'}</div>
-<div class="f mb16">
-  <label>Nome</label>
-  <input id="arch-name" value="${esc(m.name)}" placeholder="ex: Charizard ex, Gardevoir ex...">
-</div>
-${isEdit ? `
-<div class="mb12">
-  <button class="btn btn-xs btn-d" onclick="deleteArchetype('${esc(m.name)}')">
-    <i class="ti ti-trash"></i> Remover do banco
-  </button>
-</div>` : ''}
-<div class="fx gap6" style="justify-content:flex-end">
-  <button class="btn" onclick="closeM()">Cancelar</button>
-  <button class="btn btn-p" onclick="saveArchModal('${esc(m.name)}')"><i class="ti ti-check"></i> Salvar</button>
-</div>`;
-}
-
-function saveArchModal(oldName) {
-  const name = document.getElementById('arch-name')?.value?.trim();
-  if (!name) return notify('Informe o nome','warn');
-  G.settings.archetypes = G.settings.archetypes || [];
-  if (oldName) {
-    // Rename: update all tournament player decklists
-    G.tours.forEach(t => {
-      t.players.forEach(p => { if(p.deckArchetype===oldName) p.deckArchetype=name; });
-    });
-    G.settings.archetypes = G.settings.archetypes.map(a => a===oldName?name:a);
-    DB.save(SK.TN, G.tours);
-  } else {
-    if (!G.settings.archetypes.includes(name)) G.settings.archetypes.push(name);
-  }
-  G.settings.archetypes.sort((a,b)=>a.localeCompare(b,'pt'));
-  DB.save(SK.ST, G.settings);
-  closeM(); notify('Salvo','ok');
-}
-
-function deleteArchetype(name) {
-  if (!confirm(`Remover "${name}" do banco? Não afeta decklists já registradas.`)) return;
-  G.settings.archetypes = (G.settings.archetypes||[]).filter(a=>a!==name);
-  DB.save(SK.ST, G.settings);
-  closeM(); notify('Removido'); render();
-}
-
-
-/* ════════════════════════════════════════════════════════
-   VENUES — Locais
-════════════════════════════════════════════════════════ */
-function renderVenues() {
-  const q = norm(G.search);
-  const list = G.venues
-    .filter(v => !q || norm(v.name).includes(q) || norm(v.city||'').includes(q) || norm(v.responsible||'').includes(q))
-    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
-
-  return `
-<div class="fx sb2 mb16">
-  <div>
-    <h1 class="mb4">Locais</h1>
-    <div class="muted small">${G.venues.length} local${G.venues.length!==1?'is':''} cadastrado${G.venues.length!==1?'s':''}</div>
-  </div>
-  <button class="btn btn-p" onclick="openVenueModal(null)"><i class="ti ti-plus"></i> Novo local</button>
-</div>
-<div class="sw mb16">
-  <i class="ti ti-search"></i>
-  <input id="venues-search" placeholder="Buscar por nome, cidade, responsável..." value="${esc(G.search)}" oninput="updateVenuesList(this.value)">
-</div>
-<div class="card p0" id="venues-list">
-  ${renderVenueRows(list)}
-</div>`;
-}
-
-function renderVenueRows(list) {
-  if (!list.length) return `<div class="empty"><i class="ti ti-building-store"></i><p>Nenhum local encontrado</p></div>`;
-  return list.map(v => {
-    const tourCount = G.tours.filter(t => t.venueId === v.id).length;
-    return `<div class="plr" onclick="nav('vdetail',{vid:'${v.id}'})">
-      <div class="av" style="background:var(--ib);color:var(--it);border-radius:8px">
-        <i class="ti ti-building-store" style="font-size:16px"></i>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div class="fx gap6 mb4">
-          <strong>${esc(v.name)}</strong>
-          ${v.nickname?`<span class="muted small">"${esc(v.nickname)}"</span>`:''}
-          ${v.active===false?`<span class="badge bd">Inativo</span>`:''}
-        </div>
-        <div class="muted small">
-          ${[v.city, v.state].filter(Boolean).join(' / ')}
-          ${v.responsible?' · '+esc(v.responsible):''}
-          ${tourCount>0?` · ${tourCount} torneio${tourCount!==1?'s':''}`: ''}
-        </div>
-      </div>
-      <div class="fx gap4">
-        <button class="btn btn-xs" onclick="event.stopPropagation();openVenueModal('${v.id}')"><i class="ti ti-edit"></i></button>
-        <i class="ti ti-chevron-right muted"></i>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function updateVenuesList(q) {
-  G.search = q;
-  const nq = norm(q);
-  const list = G.venues
-    .filter(v => !nq || norm(v.name).includes(nq) || norm(v.city||'').includes(nq) || norm(v.responsible||'').includes(nq))
-    .sort((a,b) => a.name.localeCompare(b.name,'pt'));
-  const el = document.getElementById('venues-list');
-  if (el) el.innerHTML = renderVenueRows(list);
-}
-
-function renderVenueDetail() {
-  const v = G.venues.find(x=>x.id===G.vid);
-  if (!v) return `<div class="empty">Local não encontrado</div>`;
-  const tours = G.tours.filter(t => t.venueId === v.id).sort((a,b)=>b.createdAt-a.createdAt);
-
-  return `
-<div class="fx gap12 mb16">
-  <button class="btn btn-sm" onclick="nav('venues')"><i class="ti ti-arrow-left"></i> Voltar</button>
-  <div class="av" style="width:48px;height:48px;font-size:20px;background:var(--ib);color:var(--it);border-radius:10px">
-    <i class="ti ti-building-store"></i>
-  </div>
-  <div>
-    <h1>${esc(v.name)}${v.nickname?` <span class="muted" style="font-size:14px">"${esc(v.nickname)}"</span>`:''}</h1>
-    <div class="fx gap6 mt4">
-      ${v.active===false?`<span class="badge bd">Inativo</span>`:`<span class="badge bs">Ativo</span>`}
-      ${v.city?`<span class="badge bn">${esc(v.city)}${v.state?' / '+v.state:''}</span>`:''}
-    </div>
-  </div>
-  <button class="btn btn-sm ml" onclick="openVenueModal('${v.id}')"><i class="ti ti-edit"></i> Editar</button>
-</div>
-
-<div class="g2 gap16 mb16">
-  <div class="card">
-    <h3 class="mb12">Informações</h3>
-    <table>${[
-      v.address  && ['Endereço',  esc(v.address)],
-      (v.city||v.state) && ['Cidade', [esc(v.city||''), esc(v.state||'')].filter(Boolean).join(' / ')],
-      v.zip      && ['CEP',       esc(v.zip)],
-      v.responsible && ['Responsável', esc(v.responsible)],
-      v.contact  && ['Contato',   esc(v.contact)],
-      v.organizerName  && ['Organizer', esc(v.organizerName) + (v.organizerPopId?' <span class="mono muted">ID: '+esc(v.organizerPopId)+'</span>':'')],
-      v.notes    && ['Observações',esc(v.notes)],
-    ].filter(Boolean).map(([k,vv])=>`<tr><td class="muted" style="width:40%;padding:4px 0">${k}</td><td style="padding:4px 0">${vv}</td></tr>`).join('')}</table>
-  </div>
-  <div class="card">
-    <h3 class="mb12">Estatísticas</h3>
-    <div class="g2">
-      <div class="well tc"><div class="sv">${tours.length}</div><div class="sl">Torneios</div></div>
-      <div class="well tc"><div class="sv">${tours.reduce((s,t)=>s+t.players.length,0)}</div><div class="sl">Jogadores totais</div></div>
-      <div class="well tc"><div class="sv">${tours.filter(t=>t.status==='finished').length}</div><div class="sl">Finalizados</div></div>
-      <div class="well tc"><div class="sv">${tours.filter(t=>t.status!=='finished'&&t.status!=='registration').length}</div><div class="sl">Ativos</div></div>
-    </div>
-  </div>
-</div>
-
-<h2 class="mb12">Torneios neste local</h2>
-<div class="card p0">
-${tours.length===0?`<div class="empty"><p>Nenhum torneio vinculado</p></div>`:
-tours.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
-  <div style="flex:1"><div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-  <div class="muted small">${t.date||''} · ${t.players.length} jogadores · ${t.rounds.length} rodadas</div></div>
-  <i class="ti ti-chevron-right muted"></i>
-</div>`).join('')}
-</div>`;
-}
-
-function toggleDeckList(id) {
-  const el = document.getElementById(id);
-  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
-}
-
-function openVenueModal(id) {
-  G.modal = { type:'venue', id }; render();
-}
-
-function renderVenueModal() {
-  const m = G.modal;
-  const v = m.id ? G.venues.find(x=>x.id===m.id) : null;
-  return `
-<div class="mtitle"><i class="ti ti-building-store"></i> ${v?'Editar local':'Novo local'}</div>
-<div class="g2">
-  <div class="f"><label>Nome *</label><input id="vm-name" value="${esc(v?.name||'')}" placeholder="Pokémon Shop Rio" autofocus></div>
-  <div class="f"><label>Nome curto</label><input id="vm-nick" value="${esc(v?.nickname||'')}" placeholder="Liga Rio"></div>
-</div>
-<div class="f"><label>Endereço</label><input id="vm-addr" value="${esc(v?.address||'')}"></div>
-<div class="g2">
-  <div class="f"><label>Cidade</label><input id="vm-city" value="${esc(v?.city||'')}"></div>
-  <div class="f"><label>Estado</label><input id="vm-state" value="${esc(v?.state||'')}"></div>
-</div>
-<div class="g2">
-  <div class="f"><label>CEP</label><input id="vm-zip" value="${esc(v?.zip||'')}"></div>
-  <div class="f"><label>Responsável</label><input id="vm-resp" value="${esc(v?.responsible||'')}"></div>
-</div>
-<div class="sep"></div>
-<div class="lbl mb8">Organizer (TDF)</div>
-<p class="muted small mb10">Informações que aparecem no arquivo .tdf exportado para a Pokémon.</p>
-<div class="g2">
-  <div class="f"><label>Nome do organizador</label><input id="vm-org-name" value="${esc(v?.organizerName||'')}" placeholder="Nome completo"></div>
-  <div class="f"><label>Player ID (popid)</label><input id="vm-org-popid" value="${esc(v?.organizerPopId||'')}" placeholder="ex: 3450514"></div>
-</div>
-<div class="g2">
-  <div class="f"><label>Contato</label><input id="vm-contact" value="${esc(v?.contact||'')}" placeholder="e-mail ou telefone"></div>
-  <div class="f" style="justify-content:flex-end"><label class="fx gap6 mt4" style="cursor:pointer">
-    <input type="checkbox" id="vm-active" ${v?.active===false?'':'checked'}> Ativo
-  </label></div>
-</div>
-<div class="f mb16"><label>Observações</label><textarea id="vm-notes" style="height:60px">${esc(v?.notes||'')}</textarea></div>
-${v?`<div class="mb12"><button class="btn btn-xs btn-d" onclick="deleteVenue('${v.id}')"><i class="ti ti-trash"></i> Excluir local</button></div>`:''}
-<div class="fx gap6" style="justify-content:flex-end">
-  <button class="btn" onclick="closeM()">Cancelar</button>
-  <button class="btn btn-p" onclick="saveVenueModal('${m.id||''}')"><i class="ti ti-check"></i> Salvar</button>
-</div>`;
-}
-
-async function saveVenueModal(id) {
-  if (!requireAuth()) return;
-  const name = document.getElementById('vm-name')?.value?.trim();
-  if (!name) return notify('Nome é obrigatório','err');
-  const data = {
-    id:          id || uid(),
-    name,
-    nickname:    document.getElementById('vm-nick')?.value?.trim()||null,
-    address:     document.getElementById('vm-addr')?.value?.trim()||null,
-    city:        document.getElementById('vm-city')?.value?.trim()||null,
-    state:       document.getElementById('vm-state')?.value?.trim()||null,
-    zip:         document.getElementById('vm-zip')?.value?.trim()||null,
-    responsible: document.getElementById('vm-resp')?.value?.trim()||null,
-    contact:     document.getElementById('vm-contact')?.value?.trim()||null,
-    notes:        document.getElementById('vm-notes')?.value?.trim()||null,
-    active:       document.getElementById('vm-active')?.checked ?? true,
-    organizerName:  document.getElementById('vm-org-name')?.value?.trim()||null,
-    organizerPopId: document.getElementById('vm-org-popid')?.value?.trim()||null,
-  };
-  if (id) {
-    G.venues = G.venues.map(v => v.id===id ? {...v,...data} : v);
-  } else {
-    G.venues.push(data);
-  }
-  DB.save('ptcg_venues_v3', G.venues);
-  SB.saveVenue(data).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
-  closeM();
-  notify('Local salvo','ok');
-}
-
-function deleteVenue(id) {
-  if (!requireAuth()) return;
-  if (!confirm('Excluir este local? Os torneios vinculados perderão a referência.')) return;
-  G.venues = G.venues.filter(v=>v.id!==id);
-  DB.save('ptcg_venues_v3', G.venues);
-  SB.deleteVenue(id).then(()=>setSyncStatus('ok')).catch(e=>setSyncStatus('error',e.message));
-  notify('Local excluído');
-  nav('venues');
-}
-
-function renderTours() {
-  const q = norm(G.search);
-  const list = G.tours
-    .filter(t => !q || norm(t.name).includes(q) || norm(t.city||'').includes(q))
-    .sort((a,b) => { const sortByDate = (a,b) => { const da = a.date ? new Date(a.date).getTime() : a.createdAt; const db = b.date ? new Date(b.date).getTime() : b.createdAt; return db - da; };; return sortByDate(a,b); });
-  return `
-<div class="fx sb2 mb16"><h1>Torneios</h1>
-  <div class="fx gap6">
-    <button class="btn btn-sm" onclick="importTDF()"><i class="ti ti-file-code"></i> Importar .tdf</button>
-    <button class="btn btn-sm" onclick="importTour()"><i class="ti ti-upload"></i> Importar .json</button>
-    <button class="btn btn-p btn-sm" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo</button>
-  </div>
-</div>
-<div class="sw"><i class="ti ti-search"></i>
-  <input id="tours-search" placeholder="Buscar..." value="${esc(G.search)}" oninput="updateToursList(this.value)">
-</div>
-<div class="card p0" id="tours-list">
-${list.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio</p></div>`:
-list.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
-  <div style="flex:1">
-    <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
-    <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')}${t.venueId?' · '+esc(venueName(t.venueId)):''} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
-  </div>
-  <div class="fx gap4">
-    <button class="btn btn-xs" onclick="event.stopPropagation();exportTour('${t.id}')"><i class="ti ti-download"></i></button>
-    <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delTour('${t.id}')"><i class="ti ti-trash"></i></button>
-    <i class="ti ti-chevron-right muted"></i>
-  </div>
-</div>`).join('')}
-</div>`;
-}
-function renderCreateTour() {
-  const d = G._ctd || {};
-  const modes = [
-    {id:'lc',  name:'League Challenge', desc:'Swiss sem top cut'},
-    {id:'cup', name:'League Cup',       desc:'Swiss + top cut'},
-    {id:'one', name:'Championship',     desc:'Premier Event'},
-    {id:'custom',name:'Personalizado',    desc:'Config. livre'},
-  ];
-  return `
-<div class="fx gap12 mb20">
-  <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-arrow-left"></i> Voltar</button>
-  <h1>Novo torneio</h1>
-</div>
-<div style="max-width:580px">
-<div class="card mb16">
-  <h3 class="mb16">Informações</h3>
-  <div class="f"><label>Nome *</label><input id="ct-name" placeholder="Liga Cup Rio — Maio 2025" value="${esc(d.name||'')} " oninput="G._ctd=G._ctd||{};G._ctd.name=this.value"></div>
-  <div class="g2"><div class="f"><label>Cidade</label><input id="ct-city" value="${esc(d.city||'')} " oninput="G._ctd=G._ctd||{};G._ctd.city=this.value.trim()"></div>
-  <div class="f"><label>Estado</label><input id="ct-state" value="${esc(d.state||'')} " oninput="G._ctd=G._ctd||{};G._ctd.state=this.value.trim()"></div></div>
-  <div class="g2">
-    <div class="g2">
-    <div class="f"><label>Data</label><input type="date" id="ct-date" value="${d.date||new Date().toISOString().slice(0,10)}" onchange="G._ctd=G._ctd||{};G._ctd.date=this.value"></div>
-    <div class="f"><label>ID Sancionada</label><input id="ct-sanction" placeholder="##-##-######" value="${esc(d.sanctionedId||'')} " style="font-family:var(--mono)" oninput="G._ctd=G._ctd||{};G._ctd.sanctionedId=this.value"></div>
-  </div>
-</div>
-<div class="card mb16">
-  <h3 class="mb12">Formato</h3>
-  <div class="cg mb16">
-    ${modes.map(m=>`<div class="chip ${(d.mode||'cup')===m.id?'on':''}" onclick="setCTMode('${m.id}')">
-      <strong>${m.name}</strong><div class="small muted">${m.desc}</div></div>`).join('')}
-  </div>
-  <div class="g2">
-    <div class="f">
-      <label>Rodadas Swiss</label>
-      <select id="ct-rounds" onchange="onCTRoundsChange(this.value)">
-        <option value="auto" ${!d.totalRounds||d.totalRounds==='auto'?'selected':''}>Padrão (calculado pelo nº de jogadores)</option>
-        <option value="3"  ${d.totalRounds===3?'selected':''}>3 rodadas  (4–8 jogadores)</option>
-        <option value="4"  ${d.totalRounds===4?'selected':''}>4 rodadas  (9–16 jogadores)</option>
-        <option value="5"  ${d.totalRounds===5?'selected':''}>5 rodadas  (17–32 jogadores)</option>
-        <option value="6"  ${d.totalRounds===6?'selected':''}>6 rodadas  (33–64 jogadores)</option>
-        <option value="7"  ${d.totalRounds===7?'selected':''}>7 rodadas  (65–128 jogadores)</option>
-        <option value="8"  ${d.totalRounds===8?'selected':''}>8 rodadas  (129+ jogadores)</option>
-        <option value="custom" ${d.totalRounds==='custom'?'selected':''}>Personalizado</option>
-      </select>
-      ${d.totalRounds==='custom'?'<input type="number" id="ct-rounds-custom" min="3" max="15" value="${d.customRounds||3}" style="margin-top:6px" placeholder="Mínimo 3">':''}
-    </div>
-    <div class="f"><label>Top Cut</label><select id="ct-cut" onchange="G._ctd=G._ctd||{};G._ctd.topCutSize=Number(this.value)">
-      <option value="0" ${(d.topCutSize||0)===0?'selected':''}>Sem top cut</option>
-      <option value="4" ${(d.topCutSize||0)===4?'selected':''}>Top 4</option>
-      <option value="8" ${(d.topCutSize||0)===8?'selected':''}>Top 8</option>
-      <option value="16"${(d.topCutSize||0)===16?'selected':''}>Top 16</option>
-    </select></div>
-  </div>
-  <div class="well small muted mt4" style="padding:8px 12px">
-    <i class="ti ti-info-circle"></i>
-    Mínimo: <strong>4 jogadores</strong> e <strong>3 rodadas</strong>.
-    No modo Padrão, o nº de rodadas é definido automaticamente ao iniciar o torneio com base no total de jogadores.
-  </div>
-  <div class="g2">
-    <div class="f"><label>Tempo por rodada (min)</label><input type="number" id="ct-timer" min="10" max="90" value="${d.timerMinutes||50}" oninput="G._ctd=G._ctd||{};G._ctd.timerMinutes=Number(this.value)"></div>
-    <div class="f"><label>Seed (vazio = aleatório)</label><input id="ct-seed" placeholder="ex: 42" value="${d.seed||''}" oninput="G._ctd=G._ctd||{};G._ctd.seed=this.value"></div>
-  </div>
-</div>
-<div class="card mb16">
-  <h3 class="mb12">Divisões</h3>
-  <div class="fxc gap12">
-    <label class="fx gap6"><input type="checkbox" id="ct-sepdiv" ${(d.separateDivisions!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.separateDivisions=this.checked"> Pareamentos separados por divisão</label>
-    <label class="fx gap6"><input type="checkbox" id="ct-divst"  ${(d.standingsByDiv!==false)?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.standingsByDiv=this.checked"> Standings separados por divisão</label>
-  </div>
-</div>
-<div class="card mb16">
-  <h3 class="mb12">Debug</h3>
-  <label class="fx gap6"><input type="checkbox" id="ct-debug" ${d.debugMode?'checked':''} onchange="G._ctd=G._ctd||{};G._ctd.debugMode=this.checked"> Ativar modo debug (logs de pareamento detalhados)</label>
-</div>
-<div class="card mb16">
-  <h3 class="mb12">Jogadores <span class="badge bn" id="ct-pcount">${(d.players||[]).length > 0 ? (d.players||[]).length + ' selecionados' : 'opcional'}</span></h3>
-  <p class="muted small mb12">Você pode adicionar jogadores agora ou após criar o torneio.</p>
-  <div class="fx gap6 mb8">
-    <input id="ct-pq" placeholder="Buscar por nome ou ID..." style="flex:1" oninput="renderCTPlayerSearch(this.value)">
-    <button class="btn btn-sm" onclick="openPModal(null,'ctour')"><i class="ti ti-plus"></i> Novo</button>
-  </div>
-  <div id="ct-pres"></div>
-  <div id="ct-player-panel">
-  ${(d.players||[]).length > 0 ? `
-  <div class="sep" style="margin:8px 0"></div>
-  <div class="lbl mb6">Selecionados</div>
-  ${(d.players||[]).map((p,i)=>`<div class="plr" style="padding:6px 10px">
-    <span class="mono muted" style="min-width:20px;font-size:11px">${i+1}</span>
-    <span style="flex:1;font-size:13px">${esc(p.name)}</span>
-    ${dbadge(p.division)}
-    <button class="ib" onclick="ctRemovePlayer('${p.id}')"><i class="ti ti-x"></i></button>
-  </div>`).join('')}` : ''}
-  </div>
-</div>
-<button class="btn btn-p fw jc" style="padding:12px" onclick="createTour()">
-  <i class="ti ti-player-play"></i> Criar torneio
-</button>
-</div>`;
-}
-
-function onCTRoundsChange(val) {
-  G._ctd = G._ctd || {};
-  G._ctd.totalRounds = val === 'auto' ? 'auto' : val === 'custom' ? 'custom' : Number(val);
-  // Re-render to show/hide custom input
-  if (val === 'custom') {
-    const existing = document.getElementById('ct-rounds-custom');
-    if (!existing) {
-      const sel = document.getElementById('ct-rounds');
-      const inp = document.createElement('input');
-      inp.type='number'; inp.id='ct-rounds-custom'; inp.min=3; inp.max=15; inp.value=3;
-      inp.style.marginTop='6px'; inp.placeholder='Mínimo 3';
-      sel.parentNode.appendChild(inp);
-    }
-  }
-}
-
-function setCTMode(mode) {
-  // Salva tudo que foi preenchido antes de re-renderizar
-  G._ctd = G._ctd || {};
-  G._ctd.name        = document.getElementById('ct-name')?.value || G._ctd.name || '';
-  G._ctd.city        = document.getElementById('ct-city')?.value || G._ctd.city || '';
-  G._ctd.state       = document.getElementById('ct-state')?.value || G._ctd.state || '';
-  G._ctd.date        = document.getElementById('ct-date')?.value || G._ctd.date || '';
-  G._ctd.sanctionedId= document.getElementById('ct-sanction')?.value || G._ctd.sanctionedId || '';
-  G._ctd.totalRounds = Number(document.getElementById('ct-rounds')?.value) || G._ctd.totalRounds || 4;
-  G._ctd.timerMinutes= Number(document.getElementById('ct-timer')?.value)  || G._ctd.timerMinutes || 50;
-  G._ctd.seed        = document.getElementById('ct-seed')?.value || G._ctd.seed || '';
-  G._ctd.separateDivisions = document.getElementById('ct-sepdiv')?.checked ?? G._ctd.separateDivisions ?? true;
-  G._ctd.standingsByDiv    = document.getElementById('ct-divst')?.checked  ?? G._ctd.standingsByDiv    ?? true;
-  G._ctd.debugMode         = document.getElementById('ct-debug')?.checked  ?? false;
-  G._ctd.mode = mode;
-  // Top cut: só muda se o modo define um valor padrão claro
-  // 'custom' → preserva o que estava; outros têm default
-  if (mode === 'lc') G._ctd.topCutSize = 0;
-  else if (mode === 'cup') G._ctd.topCutSize = 8;
-  else if (mode === 'one') G._ctd.topCutSize = 8;
-  // 'custom': não altera — usuário escolhe manualmente
-  render();
-}
-
-function renderTour() {
-  const t = ct();
-  if (!t) return `<div class="empty">Torneio não encontrado</div>`;
-
-  const tabs = [
-    { id:'reg',      icon:'ti-users',        label:'Registro' },
-    { id:'rounds',   icon:'ti-layout-list',  label:'Rodada' },
-    { id:'standings',icon:'ti-list-numbers', label:'Standings' },
-    { id:'history',  icon:'ti-history',      label:'Histórico' },
-    ...(t.topBracket?.length ? [{ id:'topcut', icon:'ti-tournament', label:'Top Cut' }] : []),
-    ...(t.status==='finished' ? [{ id:'finished', icon:'ti-trophy', label:'Resultado final' }] : []),
-    { id:'decklists',icon:'ti-cards',        label:'Decklists' },
-    { id:'debug',    icon:'ti-bug',          label:'Debug' },
-    { id:'export',   icon:'ti-download',     label:'Exportar' },
-  ];
-
-  const rnd = t.rounds[t.currentRound-1];
-  const done = rnd ? rnd.pairings.filter(p=>p.result!==null).length : 0;
-  const total = rnd ? rnd.pairings.length : 0;
-
-  let body = '';
-  if      (G.tab==='reg')       body = renderReg(t);
-  else if (G.tab==='rounds')    body = renderRounds(t);
-  else if (G.tab==='standings') body = renderStandings(t);
-  else if (G.tab==='history')   body = renderHistory(t);
-  else if (G.tab==='topcut')    body = renderTopCut(t);
-  else if (G.tab==='finished')  body = renderFinished(t);
-  else if (G.tab==='decklists') body = renderDecklists(t);
-  else if (G.tab==='debug')     body = renderDebug(t);
-  else if (G.tab==='export')    body = renderExport(t);
-
-  return `
-<div class="tb">
-  <button class="btn btn-sm" onclick="nav('tours')"><i class="ti ti-arrow-left"></i></button>
-  <strong>${esc(t.name)}</strong>
-  ${stbadge(t)}
-  <span class="badge bn">${t.players.length} jog.</span>
-  ${t.venueId?`<span class="badge bn"><i class="ti ti-building-store"></i> ${esc(venueName(t.venueId))}</span>`:''}
-  ${t.status==='rounds'?renderTimerBlock(t):''}
-</div>
-<div class="tabs">
-  ${tabs.map(tb=>`<div class="tab ${G.tab===tb.id?'on':''}" onclick="G.tab='${tb.id}';render()">
-    <i class="ti ${tb.icon}"></i>${tb.label}</div>`).join('')}
-</div>
-${t.status==='rounds'&&rnd&&total>0?`
-<div style="padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd)">
-  <div class="fx sb2 mb4 small muted">
-    <span>Rodada ${t.currentRound}/${t.settings.totalRounds} · ${done}/${total}</span>
-    <span>${total-done} pendentes</span>
-  </div>
-  <div class="prog"><div class="prog-f" style="width:${total?Math.round(done/total*100):0}%"></div></div>
-</div>`:''}
-<div style="flex:1;overflow-y:auto;padding:20px">${body}</div>`;
-}
-
-const REG_PAGE_SIZE = 15;
-
-/* ── REGISTRATION ── */
-function renderReg(t) {
-  const n = t.players.length;
-  const rec = recRounds(n), cut = recCut(n, t.settings.mode);
-  const byDiv = DIVS.map(d=>({d, c:t.players.filter(p=>p.division===d).length})).filter(x=>x.c>0);
-  const isReg = t.status === 'registration';
-
-  return `
-<div class="fx sb2 mb12">
-  <div>
-    <h2 class="mb4">Registro de jogadores</h2>
-    <div class="fx gap6">
-      ${byDiv.map(({d,c})=>`<span class="badge ${DC[d]}">${d[0]}: ${c}</span>`).join('')}
-      ${n>0?`<span class="muted small">${rec} rodadas rec. · ${cut?'Top '+cut:'Sem top cut'}</span>`:''}
-    </div>
-  </div>
-  <div class="fx gap6">
-    <button class="btn btn-sm" onclick="openEditTourModal()"><i class="ti ti-edit"></i> Editar info</button>
-    ${isReg?`<button class="btn btn-p" ${n<4?'disabled title="Mínimo 4 jogadores"':''} onclick="startTour()">
-      <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
-  </div>
-</div>
-
-${isReg?`
-<div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
-
-  <!-- Painel de busca + add -->
-  <div class="fxc gap12">
-    <div class="card">
-      <h3 class="mb10">Adicionar jogador</h3>
-      <div class="fx gap6 mb8">
-        <input id="reg-q" placeholder="Nome ou Player ID..." style="flex:1"
-          oninput="renderRegSearch(this.value)" onkeydown="if(event.key==='Enter')regSearchEnter()">
-        <button class="btn btn-sm btn-p" onclick="openPModal(null,true)" title="Criar novo jogador">
-          <i class="ti ti-plus"></i>
-        </button>
-      </div>
-      <div id="reg-res"></div>
-    </div>
-
-    <div class="card">
-      <h3 class="mb8">Banco de jogadores</h3>
-      <div id="reg-db-list">${renderRegDBList(t, '', 0)}</div>
-    </div>
-
-    <div class="card">
-      <h3 class="mb8">Adicionar vários (um por linha)</h3>
-      <textarea id="bulk-in" style="height:72px" placeholder="João Silva&#10;Maria Santos"></textarea>
-      <div class="fx gap8 mt8">
-        <select id="bulk-div" style="flex:1">${DIVS.map(d=>`<option>${d}</option>`).join('')}</select>
-        <button class="btn btn-sm" onclick="addBulk()"><i class="ti ti-upload"></i> Adicionar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Lista de inscritos -->
-  <div class="card p0">
-    <div class="fx sb2" style="padding:12px 16px;border-bottom:1px solid var(--bd)">
-      <h3>${n} inscrito${n!==1?'s':''}</h3>
-      ${n>0?`<button class="btn btn-xs btn-d" onclick="if(confirm('Remover todos?'))clearTourPlayers()">
-        <i class="ti ti-trash"></i> Limpar</button>`:''}
-    </div>
-    ${n===0
-      ? `<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador ainda</p></div>`
-      : t.players.map((p,i)=>`
-        <div class="plr">
-          <span class="mono muted" style="min-width:26px;font-size:11px">${i+1}</span>
-          <span style="flex:1">${esc(p.name)}</span>
-          ${dbadge(p.division)}
-          ${p.playerId?`<span class="mono muted" style="font-size:10px">${esc(p.playerId)}</span>`:''}
-          <button class="ib" onclick="removeFromTour('${p.id}')"><i class="ti ti-x"></i></button>
-        </div>`).join('')}
-  </div>
-
-</div>`:`
-<div class="card p0">
-${t.players.map((p,i)=>`<div class="plr">
-  <span class="mono muted" style="min-width:26px;font-size:11px">${i+1}</span>
-  <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
-  ${p.playerId?`<span class="mono muted" style="font-size:10px">${esc(p.playerId)}</span>`:''}
-  ${p.dropped?`<span class="badge bn">Dropped</span>`:''}
-  ${p.dq?`<span class="badge bd">DQ</span>`:''}
-</div>`).join('')}
-</div>`}`;
-}
-
-/* Lista paginada de todos os jogadores do banco */
-function renderRegDBList(t, filter, page) {
-  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
-  const q = norm(filter||'').trim();
-  const all = G.players
-    .filter(p => !have.has(p.id) && (!q ||
-      norm(p.name).includes(q) ||
-      norm(p.playerId||'').includes(q)))
-    .sort((a,b) => a.name.localeCompare(b.name, 'pt', {sensitivity:'base'}));
-
-  const total = all.length;
-  const pages = Math.ceil(total / REG_PAGE_SIZE) || 1;
-  const pg = Math.max(0, Math.min(page, pages-1));
-  const slice = all.slice(pg * REG_PAGE_SIZE, (pg+1) * REG_PAGE_SIZE);
-
-  if (!total) return `<p class="muted small">Nenhum jogador no banco${q?' para "'+esc(q)+'"':''}.</p>`;
-
-  return `
-<div class="sw mb8" style="margin-bottom:10px">
-  <i class="ti ti-search"></i>
-  <input placeholder="Filtrar..." value="${esc(filter||'')}"
-    oninput="refreshRegDB(this.value)" style="padding-left:34px;font-size:12px">
-</div>
-<div style="max-height:320px;overflow-y:auto;margin:0 -4px">
-  ${slice.map(p=>`
-  <div class="plr" style="padding:7px 10px;cursor:pointer" onclick="addFromDB('${p.id}')">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-      <div class="muted" style="font-size:10px">${p.division}${p.playerId?' · '+esc(p.playerId):''}</div>
-    </div>
-    ${dbadge(p.division)}
-    <i class="ti ti-plus muted" style="font-size:14px;margin-left:4px"></i>
-  </div>`).join('')}
-</div>
-${pages > 1 ? `
-<div class="fx sb2 mt8" style="font-size:12px;color:var(--t2)">
-  <button class="btn btn-xs" ${pg===0?'disabled':''} onclick="regDBPage(${pg-1})">
-    <i class="ti ti-chevron-left"></i>
-  </button>
-  <span>${pg+1} / ${pages} · ${total} jogadores</span>
-  <button class="btn btn-xs" ${pg>=pages-1?'disabled':''} onclick="regDBPage(${pg+1})">
-    <i class="ti ti-chevron-right"></i>
-  </button>
-</div>` : `<p class="muted" style="font-size:11px;margin-top:6px">${total} jogador${total!==1?'es':''}</p>`}`;
-}
-
-// State for DB list
-let _regDBPage = 0, _regDBFilter = '';
-
-function refreshRegDB(filter) {
-  _regDBFilter = filter || '';
-  _regDBPage = 0;
-  const t = ct(); if (!t) return;
-  const el = document.getElementById('reg-db-list');
-  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
-}
-
-function regDBPage(pg) {
-  _regDBPage = pg;
-  const t = ct(); if (!t) return;
-  const el = document.getElementById('reg-db-list');
-  if (el) el.innerHTML = renderRegDBList(t, _regDBFilter, _regDBPage);
-}
-
-function regSearchEnter() {
-  const q = document.getElementById('reg-q')?.value?.trim();
-  if (!q) return;
-  const t = ct(); if (!t) return;
-  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
-  const found = G.players.filter(p => !have.has(p.id) && (
-    norm(p.name).startsWith(norm(q)) ||
-    norm(p.playerId||'') === norm(q)
-  ));
-  if (found.length === 1) { addFromDB(found[0].id); document.getElementById('reg-q').value=''; }
-}
-
-function renderRegSearch(q) {
-  const el = document.getElementById('reg-res');
-  if (!el) return;
-  if (!q || q.length < 1) { el.innerHTML=''; return; }
-  const t = ct(); if (!t) return;
-  const have = new Set(t.players.map(p=>p.gid).filter(Boolean));
-  const found = G.players.filter(p => !have.has(p.id) && (
-    norm(p.name).includes(norm(q)) ||
-    norm(p.playerId||'').includes(norm(q))
-  )).slice(0, 6);
-  el.innerHTML = found.length === 0
-    ? `<p class="muted small mt8">Sem resultados. <button class="btn btn-xs" onclick="openPModal(null,true)">Criar novo</button></p>`
-    : `<div class="card p0 mt8">${found.map(p=>`
-      <div class="plr" style="padding:8px 12px" onclick="addFromDB('${p.id}');document.getElementById('reg-q').value='';document.getElementById('reg-res').innerHTML=''">
-        <div style="flex:1">
-          <div style="font-size:13px">${esc(p.name)}</div>
-          <div class="muted small">${p.division}${p.playerId?' · <span class="mono">'+esc(p.playerId)+'</span>':''}</div>
-        </div>
-        ${dbadge(p.division)}
-        <i class="ti ti-plus muted"></i>
-      </div>`).join('')}</div>`;
-}
-
-/* ── ROUNDS ── */
-function renderRounds(t) {
-  if (t.status==='registration') return `<div class="empty"><i class="ti ti-layout-list"></i><p>Inicie o torneio para ver os pareamentos</p></div>`;
-  const rnd = t.rounds[t.currentRound-1];
-  if (!rnd) return `<div class="empty">Nenhuma rodada ativa</div>`;
-
-  const allDone = rnd.pairings.every(p=>p.result!==null);
-  const isLast = t.currentRound >= t.settings.totalRounds;
-
-  // Lista única ordenada por mesa — BYEs no final
-  const sorted = [...rnd.pairings].sort((a,b) => {
-    if (a.isBye && !b.isBye) return 1;
-    if (!a.isBye && b.isBye) return -1;
-    return (a.table||0) - (b.table||0);
-  });
-  const html = sorted.map(p=>pairingRow(p,t)).join('');
-
-  return `
-<div class="fx sb2 mb16">
-  <div>
-    <h2>Rodada ${t.currentRound} / ${t.settings.totalRounds}</h2>
-    ${rnd.isSimulated?`<span class="badge bw mt4"><i class="ti ti-player-play"></i> Simulada</span>`:''}
-
-  </div>
-  <div class="fx gap6">
-    <button class="btn btn-sm" onclick="printMatchSlips('${t.id}')"><i class="ti ti-printer"></i> Match Slips</button>
-    <button class="btn btn-sm" onclick="printPairings('${t.id}')"><i class="ti ti-layout-list"></i> Pairings</button>
-    <button class="btn btn-sm" onclick="simulateRound()"><i class="ti ti-dice"></i> Simular</button>
-    ${allDone?`<button class="btn btn-p" onclick="advanceRound()">
-      ${isLast?(t.settings.topCutSize>0?'Ir para Top Cut':'Finalizar'):`Rodada ${t.currentRound+1}`}
-      <i class="ti ti-arrow-right"></i></button>`:
-      `<button class="btn" disabled><i class="ti ti-hourglass"></i> Aguardando</button>`}
-  </div>
-</div>
-${html}`;
-}
-
-function pairingRow(p, t) {
-  const bye = p.p2==='BYE';
-  const p1n = esc(pname(p.p1,t)), p2n = bye ? 'BYE' : esc(pname(p.p2,t));
-  const p1d = pdiv(p.p1,t), p2d = bye ? '' : pdiv(p.p2,t);
-  const r = p.result;
-  const p1w=r===R.P1, p2w=r===R.P2, p1l=r===R.P2||r===R.DL, p2l=r===R.P1||r===R.DL;
-
-  return `
-<div class="pr">
-  <div class="pt">${p.table||'—'}</div>
-  <div class="pp ${p1w?'win':p1l?'lose':''}">
-    ${dbadge(p1d)}<span style="flex:1;font-weight:${p1w?700:400}">${p1n}</span>
-    ${p1w?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}
-  </div>
-  <div class="pvs">vs</div>
-  <div class="pp ${p2w?'win':p2l?'lose':''}">
-    ${bye?`<span class="badge bi">BYE</span>`:
-    `${dbadge(p2d)}<span style="flex:1;font-weight:${p2w?700:400}">${p2n}</span>
-    ${p2w?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}`}
-  </div>
-  <div class="pres">
-    ${bye?'':r ? `
-      <div class="fx gap4">
-        ${r===R.P1?`<span class="badge bs">P1</span>`:r===R.P2?`<span class="badge bd">P2</span>`:r===R.TIE?`<span class="badge bw">Emp</span>`:`<span class="badge bn">DL</span>`}
-        <button class="ib btn-xs" onclick="setRes('${p.id}',null)" title="Desfazer"><i class="ti ti-backspace"></i></button>
-        <button class="ib btn-xs" onclick="openJudge('${p.id}')" title="Juiz"><i class="ti ti-gavel"></i></button>
-      </div>
-      ${p.judgeNote?`<div class="small" style="color:var(--wt)"><i class="ti ti-gavel"></i> ${esc(p.judgeNote)}</div>`:''}`:
-    `<div class="rg">
-      <button class="rb rp1" onclick="setRes('${p.id}','${R.P1}')">P1</button>
-      <button class="rb rtie" onclick="setRes('${p.id}','${R.TIE}')">Emp</button>
-      <button class="rb rp2" onclick="setRes('${p.id}','${R.P2}')">P2</button>
-      <button class="rb rdl"  onclick="setRes('${p.id}','${R.DL}')" title="Double Loss">DL</button>
-    </div>`}
-  </div>
-</div>`;
-}
-
-/* ── STANDINGS ── */
-function renderStandings(t) {
-  const header = `<div class="fx sb2 mb16">
-    <h2>Standings</h2>
-    <button class="btn btn-sm" onclick="printStandings('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>
-  </div>`;
-  if (t.settings.standingsByDiv && t.settings.separateDivisions) {
-    return header + DIVS.map(div => {
-      const s = getStandings(t.players, t.rounds, div);
-      if (!s.length) return '';
-      return `<div class="lbl mb8">${div}</div>${standTable(s, t)}`;
-    }).join('');
-  }
-  return header + standTable(getStandings(t.players, t.rounds), t);
-}
-
-function standTable(stand, t) {
-  const cut = t.settings.topCutSize;
-  return `<div class="card p0 mb16 tov">
-<table>
-  <thead><tr><th>#</th><th>Jogador</th><th>Pts</th><th>W/L/E</th><th>OWP%</th><th>OOWP%</th><th>P1cnt</th><th></th></tr></thead>
-  <tbody>
-    ${stand.map((p,i)=>`
-    ${i===cut&&cut>0?`<tr class="cutrow"><td colspan="8"><div class="cutline"></div></td></tr>`:''}
-    <tr style="opacity:${p.dropped?'.4':'1'}">
-      <td class="mono" style="font-weight:${i<3&&!p.dropped?700:400}">
-        ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
-      </td>
-      <td><div class="fx gap6">${esc(p.name || (G.players.find(x=>x.id===p.gid)?.name) || '?')} ${dbadge(p.division)}</div>
-        ${p.dropped?'<div class="muted small">Dropped</div>':''}
-      </td>
-      <td class="mono" style="font-weight:700;font-size:15px">${p.mp}</td>
-      <td class="mono">${p.w}/${p.l}/${p.t}</td>
-      <td class="mono">${pct(p.owp)}</td>
-      <td class="mono">${pct(p.oowp)}</td>
-      <td class="mono">${p1Count(p.id,t.rounds)}</td>
-      <td>
-        ${!p.dropped&&!p.dq&&t.status==='rounds'?`<button class="btn btn-xs btn-w" onclick="dropP('${p.id}')">Drop</button>`:''}
-        ${p.dq?`<span class="badge bd">DQ</span>`:''}
-      </td>
-    </tr>`).join('')}
-  </tbody>
-</table></div>`;
-}
-
-/* ── HISTORY ── */
-function renderHistory(t) {
-  if (!t.rounds.length) return `<div class="empty"><p>Nenhuma rodada completada</p></div>`;
-  return `<h2 class="mb16">Histórico de rodadas</h2>
-${t.rounds.map((rnd,ri) => `
-  <div class="mb8">
-    <div class="coll-hd ${ri===t.rounds.length-1?'open':''}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
-      <span>Rodada ${rnd.number}${rnd.isSimulated?' <span class="badge bw">sim</span>':''}</span>
-      <div class="fx gap8"><span class="muted small">${rnd.pairings.filter(p=>!p.isBye).length} mesas</span><i class="ti ti-chevron-down"></i></div>
-    </div>
-    <div class="coll-bd ${ri===t.rounds.length-1?'open':''}">
-      <div class="tov"><table>
-        <thead><tr><th>Mesa</th><th>J1</th><th>Resultado</th><th>J2</th></tr></thead>
-        <tbody>${rnd.pairings.map(p=>{
-          const bye=p.p2==='BYE';
-          return `<tr>
-            <td class="mono">${p.table||'—'}</td>
-            <td>${esc(pname(p.p1,t))} ${dbadge(pdiv(p.p1,t))}</td>
-            <td>
-              ${bye?`<span class="badge bi">BYE</span>`:
-               p.result===R.P1?`<span class="badge bs">P1</span>`:
-               p.result===R.P2?`<span class="badge bd">P2</span>`:
-               p.result===R.TIE?`<span class="badge bw">Emp</span>`:
-               p.result===R.DL?`<span class="badge bn">DL</span>`:
-               `<span class="badge bn">—</span>`}
-              ${p.isRematch?`<span class="badge bw" title="Rematch forçado">⚠R</span>`:''}
-            </td>
-            <td>${bye?'—':esc(pname(p.p2,t))}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div>
-    </div>
-  </div>`).join('')}`;
-}
-
-/* ── TOP CUT ── */
-function renderTopCut(t) {
-  if (!t.topBracket?.length) return `<div class="empty"><p>Top cut não iniciado</p></div>`;
-  const last = t.topBracket[t.topBracket.length-1];
-  const allDone = last.matches.every(m=>m.winner);
-  const isFinal = last.matches.length===1;
-
-  const cols = t.topBracket.map((rnd,ri)=>{
-    const active = ri===t.topBracket.length-1;
-    const name = rnd.matches.length===1?'Final':rnd.matches.length===2?'Semifinal':rnd.matches.length===4?'Quartas':'Fase '+(ri+1);
-    return `<div class="bc"><div class="bct">${name}</div>
-    ${rnd.matches.map(m=>`<div class="bm">
-      <div class="bp ${m.winner==='p1'?'bwin':m.winner||!active?'bna':''}" onclick="${active&&!m.winner?`setTC('${m.id}','p1')`:''}">
-        <span class="bps">${m.seed1||''}</span>
-        <span class="bpn">${m.p1?esc(m.p1.name):'TBD'}</span>
-        ${m.winner==='p1'?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}
-      </div>
-      <div class="bp ${m.winner==='p2'?'bwin':m.winner||!active?'bna':''}" onclick="${active&&!m.winner?`setTC('${m.id}','p2')`:''}">
-        <span class="bps">${m.seed2||''}</span>
-        <span class="bpn">${m.p2?esc(m.p2.name):'TBD'}</span>
-        ${m.winner==='p2'?'<i class="ti ti-crown" style="color:var(--st)"></i>':''}
-      </div>
-    </div>`).join('')}</div>`;
-  }).join('');
-
-  return `
-<div class="fx sb2 mb16">
-  <h2>Top ${t.settings.topCutSize}</h2>
-  <button class="btn btn-p" ${allDone?'':'disabled'} onclick="advanceTC()">
-    ${isFinal?'Finalizar torneio':'Próxima fase'} <i class="ti ti-arrow-right"></i>
-  </button>
-</div>
-<p class="muted small mb16">Clique no nome do vencedor para avançá-lo.</p>
-<div class="bracket">${cols}</div>`;
-}
-
-/* ── FINISHED ── */
-function renderFinished(t) {
-  const stand = getStandings(t.players, t.rounds);
-  return `
-<div class="fx sb2 mb16"><h2>Resultado final</h2>
-  <button class="btn btn-sm" onclick="exportTour('${t.id}')"><i class="ti ti-download"></i> Exportar</button>
-</div>
-<div class="sgrid mb16">
-  <div class="sc"><div class="sv">${t.players.length}</div><div class="sl">Jogadores</div></div>
-  <div class="sc"><div class="sv">${t.settings.totalRounds}</div><div class="sl">Rodadas</div></div>
-  <div class="sc"><div class="sv">${t.settings.topCutSize||'—'}</div><div class="sl">Top cut</div></div>
-  <div class="sc"><div class="sv">${esc(t.city||'—')}</div><div class="sl">Cidade</div></div>
-</div>
-${standTable(stand, t)}`;
-}
-
-/* ── DEBUG ── */
-/* ── DECKLISTS ── */
-function getAllArchetypes() {
-  // Merge: pré-cadastrados nas settings + usados em torneios
-  const set = new Set(G.settings.archetypes || []);
-  G.tours.forEach(t => t.players.forEach(p => { if(p.deckArchetype) set.add(p.deckArchetype); }));
-  return [...set].sort((a,b) => a.localeCompare(b, 'pt'));
-}
-
-function renderDecklists(t) {
-  const registered = t.players.filter(p => p.deckArchetype);
-  const pending    = t.players.filter(p => !p.deckArchetype);
-  const allArchs   = getAllArchetypes();
-
-  // Contagem de arquétipos neste torneio
-  const archCount = {};
-  registered.forEach(p => { archCount[p.deckArchetype] = (archCount[p.deckArchetype]||0)+1; });
-  const archRanked = Object.entries(archCount).sort((a,b)=>b[1]-a[1]);
-  const maxCount   = archRanked[0]?.[1] || 1;
-
-  const archColors = [
-    '#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517',
-    '#D4537E','#888780','#639922','#993C1D','#534AB7',
-  ];
-
-  return `
-<div class="fx sb2 mb16">
-  <div>
-    <h2 class="mb4">Decklists</h2>
-    <div class="fx gap6">
-      <span class="badge bs"><i class="ti ti-check"></i> ${registered.length} registradas</span>
-      ${pending.length>0?`<span class="badge bn">${pending.length} pendentes</span>`:''}
-    </div>
-  </div>
-  <button class="btn btn-p" onclick="openDeckModal(null)">
-    <i class="ti ti-plus"></i> Registrar
-  </button>
-</div>
-
-<div style="display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start">
-
-  <!-- Lista de jogadores -->
-  <div class="card p0">
-    <div style="padding:10px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-      <h3 style="flex:1">Jogadores</h3>
-      <input placeholder="Buscar..." style="width:160px;font-size:12px;padding:5px 10px"
-        oninput="filterDeckList(this.value)">
-    </div>
-    <div id="deck-player-list">
-      ${renderDeckPlayerList(t, '')}
-    </div>
-  </div>
-
-  <!-- Sidebar: arquétipos + form rápido -->
-  <div style="display:flex;flex-direction:column;gap:12px">
-
-    ${archRanked.length > 0 ? `
-    <div class="card">
-      <div class="lbl mb10">Meta do torneio</div>
-      ${archRanked.map(([name, count], i) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--bd)">
-          <span style="width:10px;height:10px;border-radius:2px;background:${archColors[i%archColors.length]};flex-shrink:0"></span>
-          <span style="flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
-          <div style="width:60px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden">
-            <div style="width:${Math.round(count/maxCount*100)}%;height:100%;background:${archColors[i%archColors.length]}"></div>
-          </div>
-          <span class="muted" style="font-size:12px;min-width:16px;text-align:right">${count}</span>
-        </div>`).join('')}
-    </div>` : ''}
-
-    <div class="card">
-      <div class="lbl mb10">Registro rápido</div>
-      <div class="f mb8">
-        <label>Jogador</label>
-        <select id="deck-quick-player">
-          <option value="">Selecionar...</option>
-          ${pending.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}
-          ${registered.map(p=>`<option value="${p.id}">${esc(p.name)} ✓</option>`).join('')}
-        </select>
-      </div>
-      <div class="f mb12">
-        <label>Deck</label>
-        <input id="deck-quick-arch" list="arch-datalist" placeholder="Charizard ex, Gardevoir ex...">
-        <datalist id="arch-datalist">
-          ${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}
-        </datalist>
-      </div>
-      <button class="btn btn-p fw jc" onclick="saveDeckQuick()">
-        <i class="ti ti-check"></i> Salvar
-      </button>
-    </div>
-
-  </div>
-</div>`;
 }
 
 function renderDeckPlayerList(t, filter) {
@@ -2702,19 +1701,21 @@ function render() {
   else if (G.view==='tournament') content = renderTour();
   else if (G.view==='settings') content = renderSettings();
 
-  const syncIndicator = `
-    <div class="fx gap6" style="margin-left:auto;align-items:center">
-      <span class="sync-dot ${syncStatus}" id="sync-dot"></span>
-      <span id="sync-lbl" style="font-size:11px;color:var(--t2)" title="${esc(syncError)}">
-        ${syncStatus==='ok'?'Sincronizado':syncStatus==='syncing'?'Salvando…':syncStatus==='error'?'Erro sync':'Offline'}
-      </span>
-    </div>`;
+
 
   app.innerHTML = `
   ${!isTour ? `<div class="tb">
-    <strong style="font-size:15px"><i class="ti ti-pokeball"></i> TCG Tournament Manager</strong>
+    <strong style="font-size:15px;letter-spacing:-.3px">Jerry</strong>
     <span class="badge bn" style="font-size:10px">v${VER}</span>
-    ${syncIndicator}
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+      ${isLoggedIn()
+        ? `<span class="muted" style="font-size:11px">${esc(G.auth.email.split('@')[0])}</span>
+           <button class="btn btn-xs" onclick="doSignOut()" title="Sair"><i class="ti ti-logout"></i></button>`
+        : `<button class="btn btn-xs btn-p" onclick="G.modal={type:'login'};render()" style="gap:4px">
+             <i class="ti ti-lock" style="font-size:13px"></i> Entrar
+           </button>`}
+      <span class="sync-dot ${syncStatus}" id="sync-dot" title="${esc(syncError)}"></span>
+    </div>
   </div>` : ''}
   <div class="layout">
     ${sidebar}
@@ -3259,7 +2260,7 @@ function _playerRow(p, i) {
         ${p.nickname?`<span class="muted small">"${esc(p.nickname)}"</span>`:''}
         ${dbadge(p.division)}
       </div>
-      <div class="muted small mt4">${p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}</div>
+      <div class="muted small mt4">${p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}${(!p.playerId||!p.birthDate)?'<span class="muted" style="color:var(--wt);margin-left:4px">⚠</span>':''}</div>
     </div>
     <div class="fx gap4">
       <button class="btn btn-xs" onclick="event.stopPropagation();openPModal('${p.id}')"><i class="ti ti-edit"></i></button>
