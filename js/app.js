@@ -1593,7 +1593,7 @@ async function forceSyncAll() {
 
 function renderModal() {
   const m = G.modal;
-  let body = '';
+  let body = '', maxW = '480px';
 
   if (m.type === 'player') {
     const p = m.id ? G.players.find(x=>x.id===m.id) : null;
@@ -2528,6 +2528,67 @@ function addGlobalArchetype() {
   render();
 }
 
+
+function renderTours() {
+  const q = norm(G.search);
+  const list = G.tours
+    .filter(t => !q || norm(t.name).includes(q) || norm(t.city||'').includes(q))
+    .sort((a,b) => { const da=a.date?new Date(a.date).getTime():a.createdAt; const db=b.date?new Date(b.date).getTime():b.createdAt; return db-da; });
+  return `
+<div class="fx sb2 mb16"><h1>Torneios</h1>
+  <div class="fx gap6">
+    <button class="btn btn-sm" onclick="importTour()"><i class="ti ti-upload"></i> Importar</button>
+    <button class="btn btn-p btn-sm" onclick="nav('ctour')"><i class="ti ti-plus"></i> Novo</button>
+  </div>
+</div>
+<div class="sw"><i class="ti ti-search"></i>
+  <input id="tours-search" placeholder="Buscar..." value="${esc(G.search)}" oninput="updateToursList(this.value)">
+</div>
+<div class="card p0" id="tours-list">
+${list.length===0?`<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio</p></div>`:
+list.map(t=>`<div class="plr" onclick="openTour('${t.id}')">
+  <div style="flex:1">
+    <div class="fx gap6 mb4"><strong>${esc(t.name)}</strong>${stbadge(t)}</div>
+    <div class="muted small">${t.mode?.toUpperCase()||'—'} · ${esc(t.city||'—')}${t.venueId?' · '+esc(venueName(t.venueId)):''} · ${t.players.length} jogadores · ${t.rounds.length}/${t.settings.totalRounds} rodadas</div>
+  </div>
+  <div class="fx gap4">
+    <button class="btn btn-xs" onclick="event.stopPropagation();exportTour('${t.id}')"><i class="ti ti-download"></i></button>
+    <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delTour('${t.id}')"><i class="ti ti-trash"></i></button>
+    <i class="ti ti-chevron-right muted"></i>
+  </div>
+</div>`).join('')}
+</div>`;
+}
+
+function updateToursList(q) {
+  G.search = q;
+  const nq = norm(q);
+  const list = G.tours
+    .filter(t => !nq || norm(t.name).includes(nq) || norm(t.city||'').includes(nq))
+    .sort((a,b) => { const da=a.date?new Date(a.date).getTime():a.createdAt; const db=b.date?new Date(b.date).getTime():b.createdAt; return db-da; });
+  const el = document.getElementById('tours-list');
+  if (!el) { render(); return; }
+  el.innerHTML = list.length === 0
+    ? '<div class="empty"><i class="ti ti-trophy"></i><p>Nenhum torneio</p></div>'
+    : list.map(t => {
+        const vn = t.venueId ? ' · ' + esc(venueName(t.venueId)) : '';
+        const id = t.id;
+        return [
+          '<div class="plr" onclick="openTour(\'' + id + '\')">',
+            '<div style="flex:1">',
+              '<div class="fx gap6 mb4"><strong>' + esc(t.name) + '</strong>' + stbadge(t) + '</div>',
+              '<div class="muted small">' + (t.mode||'').toUpperCase() + ' · ' + esc(t.city||'—') + vn + ' · ' + t.players.length + ' jog.</div>',
+            '</div>',
+            '<div class="fx gap4">',
+              '<button class="btn btn-xs" onclick="event.stopPropagation();exportTour(\'' + id + '\')"><i class="ti ti-download"></i></button>',
+              '<button class="btn btn-xs btn-d" onclick="event.stopPropagation();delTour(\'' + id + '\')"><i class="ti ti-trash"></i></button>',
+              '<i class="ti ti-chevron-right muted"></i>',
+            '</div>',
+          '</div>',
+        ].join('');
+      }).join('');
+}
+
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
@@ -2591,7 +2652,5 @@ async function init() {
   G.loading = false;
   render();
 }
-
-init();
 
 init();
