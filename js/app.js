@@ -3555,14 +3555,28 @@ function loadOffline() {
 async function init() {
   // Restore auth session from localStorage
   try {
-    const saved = localStorage.getItem('ptcg_auth');
-    if (saved) G.auth = JSON.parse(saved);
+    const saved = JSON.parse(localStorage.getItem('ptcg_auth') || 'null');
+    if (saved && saved.token) {
+      G.auth = { token: saved.token, refreshToken: saved.refreshToken||null, email: saved.email||'' };
+    }
   } catch(e) { G.auth = null; }
+
   G.loading = true;
   render(); // show spinner
-
-  // Load settings from localStorage immediately (lightweight)
   G.settings = DB.load(SK.ST, { separateDivisions:true, standingsByDiv:true, timerMinutes:50, seed:'', debugMode:false });
+
+  // Se tem sessão salva, tenta refresh proativamente antes de qualquer request
+  if (G.auth) {
+    if (G.auth.refreshToken) {
+      console.log('[init] Refreshing token before load...');
+      await _sbRefreshToken();   // renova silenciosamente; se falhar, G.auth.token fica o expirado
+    } else {
+      // Sessão antiga sem refresh_token — limpa, vai como anon
+      console.warn('[init] Sessão sem refresh_token, limpando auth');
+      G.auth = null;
+      localStorage.removeItem('ptcg_auth');
+    }
+  }
 
   try {
     setSyncStatus('syncing');

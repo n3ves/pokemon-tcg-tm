@@ -127,8 +127,9 @@ async function sbFetch(method, table, body, qs) {
     body: bodyStr,
   });
 
-  // JWT expirado -> refresh e tenta novamente
-  if (res.status === 401) {
+  // JWT expirado -> refresh e tenta novamente (só se estava usando token de usuário)
+  if (res.status === 401 && typeof G !== 'undefined' && G && G.auth && G.auth.refreshToken) {
+    console.warn('[sbFetch] 401 em /' + table + ' — tentando refresh...');
     const refreshed = await _sbRefreshToken();
     if (refreshed) {
       res = await fetch(SB_URL + '/rest/v1/' + table + qs, {
@@ -136,6 +137,15 @@ async function sbFetch(method, table, body, qs) {
         headers: makeHeaders(getToken()),
         body: bodyStr,
       });
+    } else {
+      // Refresh falhou — limpa sessão para evitar loop
+      if (typeof G !== 'undefined' && G) {
+        G.auth = null;
+        try { localStorage.removeItem('ptcg_auth'); } catch(_) {}
+        console.warn('[sbFetch] Refresh falhou, sessão encerrada');
+        if (typeof notify === 'function') notify('Sessão expirada — faça login novamente', 'warn');
+        if (typeof render === 'function') render();
+      }
     }
   }
 
