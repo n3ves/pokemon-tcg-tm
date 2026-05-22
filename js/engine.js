@@ -49,23 +49,25 @@ function p1Count(pid, rounds) {
       if (p.p1 === pid && !p.isBye) c++;
   return c;
 }
-// Win% para cálculo de OWP (regra 5.6.1 + 5.3.3.1):
+// Win% para cálculo de OWP (regra oficial Pokémon 5.3.3.1):
 // • BYE rounds excluídos do numerador E denominador
-// • Dropped players: cap máximo de 75% (não 100%)
+// • Jogos contra o próprio `excludePid` são excluídos (regra oficial)
+// • Dropped players: cap máximo de 75%
 // • Mínimo: 25%
-function winPctForOWP(pid, rounds, players) {
+function winPctForOWP(pid, rounds, players, excludePid) {
   const isDropped = players?.find(p=>p.id===pid)?.dropped || false;
   let w = 0, total = 0;
   for (const rnd of rounds) {
     for (const p of rnd.pairings) {
       if (p.result === null || p.result === undefined) continue;
-      // BYE: não conta como vitória NEM como rodada no cálculo de win%
+      // BYE: não conta
       if (p.p2 === 'BYE' && p.p1 === pid) continue;
       const is1 = p.p1 === pid, is2 = p.p2 === pid;
       if (!is1 && !is2) continue;
+      // Exclui a partida contra o jogador para quem estamos calculando OWP
+      if (excludePid && ((is1 && p.p2 === excludePid) || (is2 && p.p1 === excludePid))) continue;
       total++;
       if ((p.result===R.P1&&is1)||(p.result===R.P2&&is2)) w++;
-      // TIE e DL: contam como rodada mas não como vitória
     }
   }
   if (!total) return 0.25;
@@ -75,7 +77,8 @@ function winPctForOWP(pid, rounds, players) {
 function owp(pid, rounds, players) {
   const o = getOpps(pid, rounds);
   if (!o.length) return 0;
-  return o.map(id => winPctForOWP(id, rounds, players)).reduce((a,b)=>a+b,0) / o.length;
+  // Passa pid como excludePid — remove a partida contra pid do cálculo de cada adversário
+  return o.map(id => winPctForOWP(id, rounds, players, pid)).reduce((a,b)=>a+b,0) / o.length;
 }
 function oowp(pid, rounds, players) {
   const o = getOpps(pid, rounds);

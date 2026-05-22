@@ -254,6 +254,7 @@ function stbadge(t) {
   return `<span class="badge ${m[t.status]||'bn'}">${l[t.status]||t.status}</span>`;
 }
 function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
+function resolveName(p) { return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
 function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); return p ? p.division : 'Masters'; }
 // bd aceita: ano "2005", ISO "2005-02-27", TDF "02/27/2005"
 function extractYear(bd) {
@@ -998,7 +999,7 @@ ${filtered.length === 0 ? `
 function renderDeckPlayerList(t, filter) {
   const q = norm(filter || '');
   const players = q
-    ? t.players.filter(p => norm(p.name).includes(q) || norm(p.deckArchetype||'').includes(q))
+    ? t.players.filter(p => norm(resolveName(p)).includes(q) || norm(p.deckArchetype||'').includes(q))
     : t.players;
 
   if (!players.length) return `<div class="empty"><p>Nenhum jogador encontrado</p></div>`;
@@ -1011,11 +1012,13 @@ function renderDeckPlayerList(t, filter) {
       archColorMap[p.deckArchetype] = archColors[ci++ % archColors.length];
   });
 
-  return players.map((p,i) => `
+  return players.map((p,i) => {
+    const name = resolveName(p);
+    return `
     <div class="plr" style="padding:10px 16px">
       <span class="muted mono" style="min-width:24px;font-size:11px">${t.players.indexOf(p)+1}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500">${esc(p.name)}</div>
+        <div style="font-size:13px;font-weight:500">${esc(name)}</div>
         <div class="muted small">${p.division}</div>
       </div>
       ${p.deckArchetype ? `
@@ -1032,7 +1035,8 @@ function renderDeckPlayerList(t, filter) {
           <i class="ti ti-plus"></i> Registrar
         </button>
       `}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterDeckList(q) {
