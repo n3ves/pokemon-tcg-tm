@@ -66,7 +66,10 @@ async function load() {
       sbGet('tournaments', '?order=created_at.desc'),
     ]);
 
-    const gp = players.find(p => p.id === playerId);
+    // Suporta tanto UUID interno quanto playerId do Pokémon (ex: 5098421)
+    const gp = players.find(p => p.id === playerId)
+             || players.find(p => p.playerId === playerId)
+             || players.find(p => (p.playerId||'').replace(/\D/g,'') === String(playerId).replace(/\D/g,''));
     if (!gp) { render(null, null, null); return; }
 
     // Find active tournament — prefer query param, else latest with this player

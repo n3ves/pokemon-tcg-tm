@@ -1179,18 +1179,12 @@ function validatePairings(t) {
       seen.add(p.p1); seen.add(p.p2);
     }
   }
-  // Check rematches across all rounds
-  const rematches = [];
-  for (const rnd of t.rounds)
-    for (const p of rnd.pairings)
-      if (p.isRematch) rematches.push(`R${rnd.number}: ${pname(p.p1,t)} vs ${pname(p.p2,t)}`);
-
-  if (!issues.length && !rematches.length)
+  if (!issues.length)
     return `<span class="badge bs"><i class="ti ti-check"></i> Nenhum problema encontrado</span>`;
 
   return `
 ${issues.map(i=>`<div class="badge bd mb4"><i class="ti ti-alert-circle"></i> ${esc(i)}</div>`).join('')}
-${rematches.map(r=>`<div class="badge bw mb4"><i class="ti ti-alert-triangle"></i> Rematch forçado: ${esc(r)}</div>`).join('')}`;
+`;
 }
 
 /* ── EXPORT TAB ── */
@@ -2185,13 +2179,16 @@ function _refreshRegPlayerList(t) {
     el.innerHTML = '<div class="empty"><i class="ti ti-users"></i><p>Nenhum jogador</p></div>';
     return;
   }
-  el.innerHTML = t.players.map((p,i) =>
-    '<div class="plr">' +
-    '<span class="mono muted" style="min-width:24px">' + (i+1) + '</span>' +
-    '<span style="flex:1">' + esc(p.name) + '</span>' + dbadge(p.division) +
-    '<button class="ib" onclick="removeFromTour(\'' + p.id + '\')"><i class="ti ti-x"></i></button>' +
-    '</div>'
-  ).join('');
+  el.innerHTML = t.players.map((p,i) => {
+    const gp  = G.players.find(x => x.id === p.gid);
+    const pid = gp?.playerId || p.gid || p.id;
+    return '<div class="plr">' +
+      '<span class="mono muted" style="min-width:24px">' + (i+1) + '</span>' +
+      '<span style="flex:1">' + esc(p.name) + '</span>' + dbadge(p.division) +
+      '<a href="player.html?id=' + encodeURIComponent(pid) + '&tour=' + t.id + '" target="_blank" class="ib" title="Página pública"><i class="ti ti-external-link"></i></a>' +
+      '<button class="ib" onclick="removeFromTour(\'' + p.id + '\')"><i class="ti ti-x"></i></button>' +
+      '</div>';
+  }).join('');
 }
 
 function _updateRegHeader(t) {
@@ -3385,7 +3382,7 @@ function pairingRow(p, t) {
   const r = p.result;
   const p1w=r===R.P1, p2w=r===R.P2, p1l=r===R.P2||r===R.DL, p2l=r===R.P1||r===R.DL;
   return `
-<div class="pr ${p.isRematch?'rematch':''}">
+<div class="pr">
   <div class="pt">${p.table||'—'}</div>
   <div class="pp ${p1w?'win':p1l?'lose':''}">
     ${dbadge(p1d)}<span style="flex:1;font-weight:${p1w?700:400}">${p1n}</span>
@@ -3481,7 +3478,7 @@ ${t.rounds.map((rnd,ri) => `
                p.result===R.TIE?`<span class="badge bw">Emp</span>`:
                p.result===R.DL?`<span class="badge bn">DL</span>`:
                `<span class="badge bn">—</span>`}
-              ${p.isRematch?`<span class="badge bw">⚠R</span>`:''}</td>
+            </td>
             <td>${bye?'—':esc(pname(p.p2,t))}</td>
           </tr>`;
         }).join('')}</tbody>

@@ -306,16 +306,20 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
 
     if (floaters.length) divLog.push(`  Float→ grupo ${sc}pts: ${floaters.map(p=>p.name).join(',')}`);
 
-    const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog, false);
+    const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog);
     allPairs.push(...pairs);
     floaters = leftover;
   }
 
-  // Force-pair any leftover floaters (allow rematches)
+  // Floaters residuais — tenta parear sem rematch; se impossível, BYE extra
   if (floaters.length >= 2) {
-    divLog.push(`⚠ Pareamento forçado (rematches permitidos): [${floaters.map(p=>p.name).join(', ')}]`);
-    const { pairs } = pairWithBacktrack(floaters, oppMap, rng, divLog, true);
-    allPairs.push(...pairs);
+    const { pairs: fp, leftover: fl2 } = pairWithBacktrack(floaters, oppMap, rng, divLog);
+    allPairs.push(...fp);
+    // Qualquer floater que sobrou sem par válido recebe BYE extra
+    fl2.forEach(p => {
+      divLog.push(`⚠ Float sem par válido: ${p.name} → BYE extra`);
+      allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+    });
   } else if (floaters.length === 1) {
     divLog.push(`⚠ Float sem par: ${floaters[0].name} → BYE extra`);
     allPairs.push({ id: uid(), p1: floaters[0].id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
@@ -344,53 +348,54 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
    Tries all permutations within a group to find a pairing with
    zero rematches. Falls back to minimum-rematch if impossible.
    For large groups uses greedy with swap-retry (performance). */
-function pairWithBacktrack(group, oppMap, rng, divLog, forceRematch) {
+function pairWithBacktrack(group, oppMap, rng, divLog) {
   if (group.length === 0) return { pairs: [], leftover: [] };
   if (group.length === 1) return { pairs: [], leftover: group };
 
-  // For groups ≤ 8 use full backtracking; larger → greedy+swap
-  if (group.length <= 8) {
-    const result = backtrack(group, oppMap, [], 0);
+  // Grupos ≤ 10: backtracking estrito (zero rematches garantido ou flutua)
+  if (group.length <= 10) {
+    const result = backtrack(group, oppMap, []);
     if (result) {
       result.pairs.forEach(p => {
         const nameA = group.find(x=>x.id===p.p1)?.name||'?';
         const nameB = group.find(x=>x.id===p.p2)?.name||'?';
-        divLog.push(`  ${nameA} × ${nameB}${p.isRematch?' ⚠REMATCH':''}`);
+        divLog.push(`  ${nameA} × ${nameB}`);
       });
       return { pairs: result.pairs, leftover: result.leftover };
     }
   }
 
-  // Greedy with swap for large groups
-  return greedyPair(group, oppMap, rng, divLog, forceRematch);
+  // Grupos grandes: greedy estrito (sem rematch)
+  return greedyPair(group, oppMap, rng, divLog);
 }
 
-function backtrack(pool, oppMap, pairs, rematchCount) {
-  if (pool.length === 0) return { pairs, leftover: [], rematch: rematchCount };
-  if (pool.length === 1) return { pairs, leftover: pool, rematch: rematchCount };
+// Backtracking estrito — NUNCA gera rematch.
+// Tenta todas as permutações do grupo. Se não encontrar solução limpa,
+// retorna null e o jogador sobra como floater para o grupo seguinte.
+function backtrack(pool, oppMap, pairs) {
+  if (pool.length === 0) return { pairs, leftover: [] };
+  if (pool.length === 1) return { pairs, leftover: pool };
 
-  const first = pool[0];
-  const rest  = pool.slice(1);
+  const first     = pool[0];
+  const rest      = pool.slice(1);
   const firstOpps = oppMap.get(first.id) || new Set();
 
-  let best = null;
-
   for (let i = 0; i < rest.length; i++) {
-    const partner  = rest[i];
-    const isRem    = firstOpps.has(partner.id);
-    const newPool  = rest.filter((_,j) => j !== i);
-    const newPair  = { id: uid(), p1: first.id, p2: partner.id, result: null, isRematch: isRem, isBye: false, table: null };
-    const result   = backtrack(newPool, oppMap, [...pairs, newPair], rematchCount + (isRem?1:0));
-    if (!result) continue;
-    if (!best || result.rematch < best.rematch) {
-      best = result;
-      if (best.rematch === 0) break; // optimal found
-    }
+    const partner = rest[i];
+    if (firstOpps.has(partner.id)) continue; // NUNCA rematch
+    const newPool = rest.filter((_,j) => j !== i);
+    const newPair = { id: uid(), p1: first.id, p2: partner.id, result: null, isBye: false, table: null };
+    const result  = backtrack(newPool, oppMap, [...pairs, newPair]);
+    if (result) return result;
   }
-  return best;
+
+  // Não encontrou par válido para first — ele flutua para baixo
+  const result = backtrack(rest, oppMap, pairs);
+  if (result) return { pairs: result.pairs, leftover: [first, ...result.leftover] };
+  return { pairs, leftover: pool };
 }
 
-function greedyPair(group, oppMap, rng, divLog, forceAll) {
+function greedyPair(group, oppMap, rng, divLog) {
   const pairs = [], leftover = [];
   const used  = new Set();
 
@@ -398,23 +403,18 @@ function greedyPair(group, oppMap, rng, divLog, forceAll) {
     if (used.has(group[i].id)) continue;
     const p1    = group[i];
     const p1opp = oppMap.get(p1.id) || new Set();
-    let partner = null, isRematch = false;
+    let partner = null;
 
     // Try clean match first
     for (let j = i+1; j < group.length; j++) {
       if (!used.has(group[j].id) && !p1opp.has(group[j].id)) { partner = group[j]; break; }
     }
-    // Allow rematch if forced
-    if (!partner && forceAll) {
-      for (let j = i+1; j < group.length; j++) {
-        if (!used.has(group[j].id)) { partner = group[j]; isRematch = true; break; }
-      }
-    }
+    // Sem par válido → deixa flotar, nunca força rematch
 
     if (partner) {
       used.add(p1.id); used.add(partner.id);
-      pairs.push({ id: uid(), p1: p1.id, p2: partner.id, result: null, isRematch, isBye: false, table: null });
-      divLog.push(`  ${p1.name} × ${partner.name}${isRematch?' ⚠REMATCH':''}`);
+      pairs.push({ id: uid(), p1: p1.id, p2: partner.id, result: null, isBye: false, table: null });
+      divLog.push(`  ${p1.name} × ${partner.name}`);
     } else {
       leftover.push(p1);
       divLog.push(`  Float↓: ${p1.name}`);
@@ -592,16 +592,20 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
 
     if (floaters.length) divLog.push(`  Float→ grupo ${sc}pts: ${floaters.map(p=>p.name).join(',')}`);
 
-    const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog, false);
+    const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog);
     allPairs.push(...pairs);
     floaters = leftover;
   }
 
-  // Force-pair any leftover floaters (allow rematches)
+  // Floaters residuais — tenta parear sem rematch; se impossível, BYE extra
   if (floaters.length >= 2) {
-    divLog.push(`⚠ Pareamento forçado (rematches permitidos): [${floaters.map(p=>p.name).join(', ')}]`);
-    const { pairs } = pairWithBacktrack(floaters, oppMap, rng, divLog, true);
-    allPairs.push(...pairs);
+    const { pairs: fp, leftover: fl2 } = pairWithBacktrack(floaters, oppMap, rng, divLog);
+    allPairs.push(...fp);
+    // Qualquer floater que sobrou sem par válido recebe BYE extra
+    fl2.forEach(p => {
+      divLog.push(`⚠ Float sem par válido: ${p.name} → BYE extra`);
+      allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+    });
   } else if (floaters.length === 1) {
     divLog.push(`⚠ Float sem par: ${floaters[0].name} → BYE extra`);
     allPairs.push({ id: uid(), p1: floaters[0].id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
@@ -630,53 +634,54 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
    Tries all permutations within a group to find a pairing with
    zero rematches. Falls back to minimum-rematch if impossible.
    For large groups uses greedy with swap-retry (performance). */
-function pairWithBacktrack(group, oppMap, rng, divLog, forceRematch) {
+function pairWithBacktrack(group, oppMap, rng, divLog) {
   if (group.length === 0) return { pairs: [], leftover: [] };
   if (group.length === 1) return { pairs: [], leftover: group };
 
-  // For groups ≤ 8 use full backtracking; larger → greedy+swap
-  if (group.length <= 8) {
-    const result = backtrack(group, oppMap, [], 0);
+  // Grupos ≤ 10: backtracking estrito (zero rematches garantido ou flutua)
+  if (group.length <= 10) {
+    const result = backtrack(group, oppMap, []);
     if (result) {
       result.pairs.forEach(p => {
         const nameA = group.find(x=>x.id===p.p1)?.name||'?';
         const nameB = group.find(x=>x.id===p.p2)?.name||'?';
-        divLog.push(`  ${nameA} × ${nameB}${p.isRematch?' ⚠REMATCH':''}`);
+        divLog.push(`  ${nameA} × ${nameB}`);
       });
       return { pairs: result.pairs, leftover: result.leftover };
     }
   }
 
-  // Greedy with swap for large groups
-  return greedyPair(group, oppMap, rng, divLog, forceRematch);
+  // Grupos grandes: greedy estrito (sem rematch)
+  return greedyPair(group, oppMap, rng, divLog);
 }
 
-function backtrack(pool, oppMap, pairs, rematchCount) {
-  if (pool.length === 0) return { pairs, leftover: [], rematch: rematchCount };
-  if (pool.length === 1) return { pairs, leftover: pool, rematch: rematchCount };
+// Backtracking estrito — NUNCA gera rematch.
+// Tenta todas as permutações do grupo. Se não encontrar solução limpa,
+// retorna null e o jogador sobra como floater para o grupo seguinte.
+function backtrack(pool, oppMap, pairs) {
+  if (pool.length === 0) return { pairs, leftover: [] };
+  if (pool.length === 1) return { pairs, leftover: pool };
 
-  const first = pool[0];
-  const rest  = pool.slice(1);
+  const first     = pool[0];
+  const rest      = pool.slice(1);
   const firstOpps = oppMap.get(first.id) || new Set();
 
-  let best = null;
-
   for (let i = 0; i < rest.length; i++) {
-    const partner  = rest[i];
-    const isRem    = firstOpps.has(partner.id);
-    const newPool  = rest.filter((_,j) => j !== i);
-    const newPair  = { id: uid(), p1: first.id, p2: partner.id, result: null, isRematch: isRem, isBye: false, table: null };
-    const result   = backtrack(newPool, oppMap, [...pairs, newPair], rematchCount + (isRem?1:0));
-    if (!result) continue;
-    if (!best || result.rematch < best.rematch) {
-      best = result;
-      if (best.rematch === 0) break; // optimal found
-    }
+    const partner = rest[i];
+    if (firstOpps.has(partner.id)) continue; // NUNCA rematch
+    const newPool = rest.filter((_,j) => j !== i);
+    const newPair = { id: uid(), p1: first.id, p2: partner.id, result: null, isBye: false, table: null };
+    const result  = backtrack(newPool, oppMap, [...pairs, newPair]);
+    if (result) return result;
   }
-  return best;
+
+  // Não encontrou par válido para first — ele flutua para baixo
+  const result = backtrack(rest, oppMap, pairs);
+  if (result) return { pairs: result.pairs, leftover: [first, ...result.leftover] };
+  return { pairs, leftover: pool };
 }
 
-function greedyPair(group, oppMap, rng, divLog, forceAll) {
+function greedyPair(group, oppMap, rng, divLog) {
   const pairs = [], leftover = [];
   const used  = new Set();
 
@@ -684,23 +689,18 @@ function greedyPair(group, oppMap, rng, divLog, forceAll) {
     if (used.has(group[i].id)) continue;
     const p1    = group[i];
     const p1opp = oppMap.get(p1.id) || new Set();
-    let partner = null, isRematch = false;
+    let partner = null;
 
     // Try clean match first
     for (let j = i+1; j < group.length; j++) {
       if (!used.has(group[j].id) && !p1opp.has(group[j].id)) { partner = group[j]; break; }
     }
-    // Allow rematch if forced
-    if (!partner && forceAll) {
-      for (let j = i+1; j < group.length; j++) {
-        if (!used.has(group[j].id)) { partner = group[j]; isRematch = true; break; }
-      }
-    }
+    // Sem par válido → deixa flotar, nunca força rematch
 
     if (partner) {
       used.add(p1.id); used.add(partner.id);
-      pairs.push({ id: uid(), p1: p1.id, p2: partner.id, result: null, isRematch, isBye: false, table: null });
-      divLog.push(`  ${p1.name} × ${partner.name}${isRematch?' ⚠REMATCH':''}`);
+      pairs.push({ id: uid(), p1: p1.id, p2: partner.id, result: null, isBye: false, table: null });
+      divLog.push(`  ${p1.name} × ${partner.name}`);
     } else {
       leftover.push(p1);
       divLog.push(`  Float↓: ${p1.name}`);
@@ -876,7 +876,7 @@ function parseTDF(xmlStr) {
           table:     tableNum,
           result,
           isBye,
-          isRematch: false,
+          
           judgeNote: null,
         });
       }
