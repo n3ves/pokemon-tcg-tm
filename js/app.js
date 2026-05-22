@@ -246,7 +246,7 @@ function pick(ext, cb) {
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmt(s) { const m = Math.floor(s/60), sc = s%60; return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`; }
-function pct(n) { return (n*100).toFixed(1)+'%'; }
+function pct(n) { return (Math.floor(n*10000)/100).toFixed(2)+'%'; }
 function dbadge(d) { return `<span class="badge ${DC[d]||''}">${d?d[0]:'?'}</span>`; }
 function stbadge(t) {
   const m={registration:'bi',rounds:'bw',topcut:'bw',finished:'bs'};
@@ -1870,7 +1870,8 @@ function renderModal() {
   if (m.type === 'venue') { body = renderVenueModal(); }
   if (m.type === 'arch') { body = renderArchModal(); }
   if (m.type === 'deck')         { body = renderDeckModal(); }
-  if (m.type === 'timer-config') { body = renderTimerConfigModal(); maxW = '420px'; }
+  if (m.type === 'timer-config')   { body = renderTimerConfigModal(); maxW = '420px'; }
+  if (m.type === 'link-players')   { body = renderLinkPlayersModal(); maxW = '560px'; }
 
   if (m.type === 'judge') {
     const t = ct(), rnd = t?.rounds[t.currentRound-1];
@@ -3919,6 +3920,144 @@ function copyTourLink(tourId) {
 function toggleDeckCol() {
   G._showDeck = !G._showDeck;
   render();
+}
+
+
+/* ════════════════════════════════════════════════════════
+   VINCULAR JOGADORES DO TDF AO CADASTRO — sugestão em lote
+════════════════════════════════════════════════════════ */
+function norm2(s) { return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
+
+function calcNameSimilarity(a, b) {
+  a = norm2(a); b = norm2(b);
+  if (a === b) return 1.0;
+  // Token match — partes do nome em comum
+  const ta = new Set(a.split(/\s+/)), tb = new Set(b.split(/\s+/));
+  const common = [...ta].filter(t => tb.has(t)).length;
+  if (common > 0) return common / Math.max(ta.size, tb.size);
+  // Prefix match
+  if (a.startsWith(b.slice(0,4)) || b.startsWith(a.slice(0,4))) return 0.5;
+  return 0;
+}
+
+function openLinkModal(tourId) {
+  G.modal = { type: 'link-players', tourId };
+  render();
+}
+
+function renderLinkPlayersModal() {
+  const t = G.tours.find(x => x.id === G.modal.tourId);
+  if (!t) return '';
+
+  // Encontra jogadores do torneio sem gid ou com gid mas nome vazio no banco
+  const unlinked = t.players.filter(tp => {
+    if (!tp.gid) return true;
+    const gp = G.players.find(x => x.id === tp.gid);
+    return !gp; // gid aponta para jogador que não existe no banco
+  });
+
+  if (!unlinked.length) return `
+    <div class="mtitle"><i class="ti ti-link"></i> Vincular jogadores</div>
+    <div class="well tc" style="padding:24px">
+      <i class="ti ti-check" style="font-size:32px;color:var(--it)"></i>
+      <p class="mt8">Todos os jogadores já estão vinculados ao cadastro.</p>
+    </div>
+    <div class="fx" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeM()">Fechar</button>
+    </div>`;
+
+  // Sugere correspondências por similaridade de nome + playerId
+  const suggestions = unlinked.map(tp => {
+    const playerId = tp.playerId || '';
+    // Exact playerId match first
+    let best = playerId ? G.players.find(x => x.playerId === playerId) : null;
+    let score = best ? 1.0 : 0;
+
+    if (!best) {
+      // Name similarity
+      G.players.forEach(gp => {
+        const s = calcNameSimilarity(tp.name, gp.name);
+        if (s > score) { score = s; best = gp; }
+      });
+    }
+
+    return {
+      tp,
+      suggestion: score >= 0.4 ? best : null,
+      score,
+      selectedGid: score >= 0.4 ? best?.id : null,
+    };
+  });
+
+  // Store suggestions in G for form access
+  G._linkSuggestions = suggestions;
+
+  return `
+<div class="mtitle"><i class="ti ti-link"></i> Vincular jogadores ao cadastro</div>
+<p class="muted small mb12">${unlinked.length} jogador${unlinked.length!==1?'es':''} sem vínculo. Confirme ou corrija as sugestões abaixo.</p>
+<div style="max-height:420px;overflow-y:auto;margin-bottom:12px">
+  ${suggestions.map((s,i) => `
+  <div class="card mb8" style="padding:12px">
+    <div class="fx sb2 mb8">
+      <div>
+        <div style="font-weight:600">${esc(s.tp.name)}</div>
+        <div class="muted small">${s.tp.playerId?'ID: '+s.tp.playerId:''} · ${s.tp.division}</div>
+      </div>
+      ${s.score>=0.9?'<span class="badge bs small">Exato</span>':s.score>=0.4?'<span class="badge bw small">Sugerido</span>':'<span class="badge bd small">Sem sugestão</span>'}
+    </div>
+    <div class="fx gap8" style="align-items:center">
+      <i class="ti ti-arrow-right muted" style="flex-shrink:0"></i>
+      <select id="link-sel-${i}" style="flex:1;font-size:13px" onchange="G._linkSuggestions[${i}].selectedGid=this.value||null">
+        <option value="">— Criar novo cadastro —</option>
+        ${G.players.sort((a,b)=>a.name.localeCompare(b.name,'pt')).map(gp =>
+          `<option value="${gp.id}" ${s.suggestion?.id===gp.id?'selected':''}>${esc(gp.name)}${gp.playerId?' ('+gp.playerId+')':''}</option>`
+        ).join('')}
+      </select>
+    </div>
+  </div>`).join('')}
+</div>
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="applyLinkPlayers('${t.id}')"><i class="ti ti-check"></i> Aplicar vínculos</button>
+</div>`;
+}
+
+function applyLinkPlayers(tourId) {
+  const t = G.tours.find(x => x.id === tourId);
+  if (!t || !G._linkSuggestions) return;
+
+  let linked = 0, created = 0;
+  G._linkSuggestions.forEach(s => {
+    if (s.selectedGid) {
+      // Vincular ao cadastro existente
+      const gp = G.players.find(x => x.id === s.selectedGid);
+      if (gp) {
+        s.tp.gid      = gp.id;
+        s.tp.name     = gp.name;
+        s.tp.division = gp.division;
+        linked++;
+      }
+    } else {
+      // Criar novo cadastro a partir dos dados do TDF
+      const newGP = {
+        id:        uid(),
+        name:      s.tp.name,
+        division:  s.tp.division,
+        playerId:  s.tp.playerId || '',
+        birthDate: s.tp.birthDate || '',
+        nickname:  '', contact:'', city:'', state:'', notes:'',
+        createdAt: Date.now(),
+      };
+      G.players.push(newGP);
+      s.tp.gid = newGP.id;
+      created++;
+    }
+  });
+
+  G._linkSuggestions = null;
+  saveAll();
+  closeM();
+  notify(`${linked} vinculado${linked!==1?'s':''}, ${created} criado${created!==1?'s':''}`, 'ok');
 }
 
 function loadOffline() {
