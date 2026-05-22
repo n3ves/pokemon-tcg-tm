@@ -3417,9 +3417,15 @@ function pairingRow(p, t) {
 }
 
 function renderStandings(t) {
+  const hasDeck = t.players.some(p=>p.deckArchetype);
   const header = `<div class="fx sb2 mb16">
     <h2>Standings</h2>
-    <button class="btn btn-sm" onclick="printStandings('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>
+    <div class="fx gap6">
+      ${hasDeck?`<button class="btn btn-sm" onclick="toggleDeckCol()" id="deck-toggle-btn">
+        <i class="ti ti-${G._showDeck?'eye-off':'cards'}"></i> ${G._showDeck?'Ocultar deck':'Mostrar deck'}
+      </button>`:''}
+      <button class="btn btn-sm" onclick="printStandings('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>
+    </div>
   </div>`;
   if (t.settings.standingsByDiv && t.settings.separateDivisions) {
     return header + DIVS.map(div => {
@@ -3433,12 +3439,17 @@ function renderStandings(t) {
 
 function standTable(stand, t) {
   const cut = t.settings.topCutSize;
+  const showDeck = G._showDeck;
+  const hasDeck = stand.some(p => t.players.find(x=>x.id===p.id)?.deckArchetype);
+  const cols = showDeck ? 8 : 7;
   return `<div class="card p0 mb16 tov">
 <table>
-  <thead><tr><th>#</th><th>Jogador</th><th>Pts</th><th>W/L/E</th><th>OWP%</th><th>OOWP%</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Jogador</th>${showDeck?'<th>Deck</th>':''}<th>Pts</th><th>W/L/E</th><th>OWP%</th><th>OOWP%</th><th></th></tr></thead>
   <tbody>
-    ${stand.map((p,i)=>`
-    ${i===cut&&cut>0?`<tr class="cutrow"><td colspan="7"><div class="cutline"></div></td></tr>`:''}
+    ${stand.map((p,i)=>{
+      const tp = t.players.find(x=>x.id===p.id);
+      return `
+    ${i===cut&&cut>0?`<tr class="cutrow"><td colspan="${cols}"><div class="cutline"></div></td></tr>`:''}
     <tr style="opacity:${p.dropped?'.4':'1'}">
       <td class="mono" style="font-weight:${i<3&&!p.dropped?700:400}">
         ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
@@ -3446,6 +3457,7 @@ function standTable(stand, t) {
       <td><div class="fx gap6">${esc(p.name||G.players.find(x=>x.id===p.gid)?.name||'?')} ${dbadge(p.division)}</div>
         ${p.dropped?'<div class="muted small">Dropped</div>':''}
       </td>
+      ${showDeck?`<td><span class="muted small">${esc(tp?.deckArchetype||'—')}</span></td>`:''}
       <td class="mono" style="font-weight:700;font-size:15px">${p.mp}</td>
       <td class="mono">${p.w}/${p.l}/${p.t}</td>
       <td class="mono">${pct(p.owp)}</td>
@@ -3454,7 +3466,8 @@ function standTable(stand, t) {
         ${!p.dropped&&!p.dq&&t.status==='rounds'?`<button class="btn btn-xs btn-w" onclick="dropP('${p.id}')">Drop</button>`:''}
         ${p.dq?`<span class="badge bd">DQ</span>`:''}
       </td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody>
 </table></div>`;
 }
@@ -3519,7 +3532,12 @@ function renderFinished(t) {
   const stand = getStandings(t.players, t.rounds);
   return `
 <div class="fx sb2 mb16"><h2>Resultado final</h2>
-  <button class="btn btn-sm" onclick="exportTour('${t.id}')"><i class="ti ti-download"></i> Exportar</button>
+  <div class="fx gap6">
+    ${t.players.some(p=>p.deckArchetype)?`<button class="btn btn-sm" onclick="toggleDeckCol()">
+      <i class="ti ti-${G._showDeck?'eye-off':'cards'}"></i> ${G._showDeck?'Ocultar deck':'Mostrar deck'}
+    </button>`:''}
+    <button class="btn btn-sm" onclick="exportTour('${t.id}')"><i class="ti ti-download"></i> Exportar</button>
+  </div>
 </div>
 <div class="sgrid mb16">
   <div class="sc"><div class="sv">${t.players.length}</div><div class="sl">Jogadores</div></div>
@@ -3599,23 +3617,7 @@ ${pending.length>0?`
           <button class="btn btn-xs" onclick="openArchModal('${esc(name)}')"><i class="ti ti-edit"></i></button>
         </div>`).join('')}
     </div>
-    ${allArchs.length>0?`
-    <div class="card">
-      <h3 class="mb8">Cadastro rápido</h3>
-      <div class="g2 mb8">
-        <div class="f mb0"><label>Jogador</label>
-          <select id="deck-quick-player">
-            <option value="">Selecionar...</option>
-            ${t.players.map(p=>`<option value="${p.id}">${esc(p.name)} ${p.deckArchetype?'✓':''}</option>`).join('')}
-          </select>
-        </div>
-        <div class="f mb0"><label>Deck</label>
-          <input id="deck-quick-arch" list="dq-list" placeholder="Deck...">
-          <datalist id="dq-list">${allArchs.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
-        </div>
-      </div>
-      <button class="btn btn-s fw jc" onclick="saveDeckQuick()"><i class="ti ti-check"></i> Salvar</button>
-    </div>`:''}
+
   </div>
 </div>`;
 }
@@ -3910,6 +3912,12 @@ function copyTourLink(tourId) {
     () => notify('Link copiado! Cole no chat para os jogadores', 'ok'),
     () => notify('URL: ' + url, 'ok')
   );
+}
+
+
+function toggleDeckCol() {
+  G._showDeck = !G._showDeck;
+  render();
 }
 
 function loadOffline() {
