@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jerry — Ranking Global</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { max-width: 680px; margin: 0 auto; padding: 20px 16px; }
+    .rank-row { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid var(--bd); cursor:pointer; text-decoration:none; color:inherit; }
+    .rank-row:hover { background:var(--s1); }
+    .rank-pos  { font-weight:700; min-width:32px; font-size:16px; text-align:center; }
+    .rank-name { flex:1; font-size:15px; font-weight:500; }
+    .rank-elo  { font-family:var(--mono); font-weight:700; font-size:17px; color:var(--it); min-width:44px; text-align:right; }
+    .rank-wr   { font-size:12px; min-width:36px; text-align:right; }
+    .elo-bar   { height:3px; background:var(--bd); border-radius:2px; margin-top:4px; }
+    .elo-fill  { height:100%; border-radius:2px; background:var(--it); }
+  </style>
+</head>
+<body>
+<div style="text-align:center;margin-bottom:20px">
+  <div style="font-size:11px;color:var(--t2);font-weight:600;letter-spacing:.1em">JERRY · POKÉMON TCG</div>
+</div>
+<div class="fx sb2 mb16">
+  <h1>Ranking Global</h1>
+  <span class="muted small" id="subtitle">Carregando...</span>
+</div>
+<div id="app"><div style="text-align:center;padding:40px;color:var(--t2)"><i class="ti ti-loader" style="font-size:32px"></i></div></div>
+<div style="text-align:center;margin-top:20px;font-size:11px;color:var(--t2)">
+  ELO modificado · mín. 3 partidas · LC×0.5 / Cup×1.0 / Champ×2.0
+</div>
+<script>
+const SB_URL = 'https://dlzfxzkvcdycvovnqeya.supabase.co';
+const SB_KEY = 'sb_publishable_D7HJx2dydwnyZtgbf-tOOw_YvEDMfgs';
+const R = { P1:'p1', P2:'p2', TIE:'tie', DL:'dl' };
+const MODE_K = { lc:0.5, cup:1.0, one:2.0, cust:0.75 };
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function badge(d) {
+  const m = {Junior:'<span class="badge bd">J</span>',Senior:'<span class="badge bw">S</span>',Master:'<span class="badge bs">M</span>'};
+  return m[d]||'';
+}
+
+async function sbGet(table, qs) {
+  const r = await fetch(SB_URL+'/rest/v1/'+table+(qs||''), {
+    headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY }
+  });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function calcElo(players, tours) {
+  const K_BASE = 32;
+  const ratings = {};
+  function getRating(id) {
+    if (!ratings[id]) ratings[id] = { rating:1500, w:0, l:0, t:0, games:0 };
+    return ratings[id];
+  }
+  function exp(rA, rB) { return 1 / (1 + Math.pow(10, (rB-rA)/400)); }
+
+  const sorted = [...tours]
+    .filter(t => t.status==='finished' && t.rounds?.length)
+    .sort((a,b)=>(a.date||a.createdAt||0)>(b.date||b.createdAt||0)?1:-1);
+
+  sorted.forEach(tour => {
+    const K = K_BASE * (MODE_K[tour.mode||tour.settings?.mode] || 0.75);
+    (tour.rounds||[]).forEach(rnd => {
+      (rnd.pairings||[]).forEach(p => {
+        if (p.isBye || !p.result || p.result==='dl') return;
+        const tp1 = tour.players.find(x=>x.id===p.p1);
+        const tp2 = tour.players.find(x=>x.id===p.p2);
+        if (!tp1||!tp2) return;
+        const id1=tp1.gid||tp1.id, id2=tp2.gid||tp2.id;
+        if (!id1||!id2) return;
+        const r1=getRating(id1), r2=getRating(id2);
+        const e1=exp(r1.rating,r2.rating), e2=1-e1;
+        let s1=0.5,s2=0.5;
+        if(p.result==='p1'){s1=1;s2=0;r1.w++;r2.l++;}
+        else if(p.result==='p2'){s1=0;s2=1;r1.l++;r2.w++;}
+        else{r1.t++;r2.t++;}
+        r1.rating=Math.max(100,r1.rating+K*(s1-e1));
+        r2.rating=Math.max(100,r2.rating+K*(s2-e2));
+        r1.games++;r2.games++;
+      });
+    });
+  });
+  return ratings;
+}
+
+async function load() {
+  try {
+    const [rows, tourRows] = await Promise.all([
+      sbGet('players','?order=name.asc'),
+      sbGet('tournaments','?order=created_at.desc'),
+    ]);
+    const tours = tourRows.map(r => {
+      try { return typeof r.full_state==='string' ? JSON.parse(r.full_state) : r.full_state; } catch(e){return null;}
+    }).filter(Boolean);
+
+    const ratings = calcElo(rows, tours);
+    const ranked  = rows
+      .map(p => { const r=ratings[p.id]; return r&&r.games>=3?{...p,...r}:null; })
+      .filter(Boolean)
+      .sort((a,b)=>b.rating-a.rating);
+    const maxElo  = ranked[0]?.rating || 1800;
+
+    document.getElementById('subtitle').textContent = ranked.length + ' jogadores rankeados';
+
+    if (!ranked.length) {
+      document.getElementById('app').innerHTML =
+        '<div style="text-align:center;padding:40px;color:var(--t2)"><p>Nenhum jogador rankeado ainda.<br>São necessários torneios finalizados com ao menos 3 partidas.</p></div>';
+      return;
+    }
+
+    document.getElementById('app').innerHTML =
+      '<div class="card p0">' +
+      ranked.map((p,i) => {
+        const wr   = p.games > 0 ? Math.round(p.w/p.games*100) : 0;
+        const fill = Math.round((p.rating-1000)/(maxElo-1000)*100);
+        return `<a class="rank-row" href="player.html?id=${p.id}">
+          <span class="rank-pos">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</span>
+          <div style="flex:1;min-width:0">
+            <div class="fx gap6"><span class="rank-name">${esc(p.name)}</span>${badge(p.division)}</div>
+            <div class="elo-bar"><div class="elo-fill" style="width:${fill}%"></div></div>
+          </div>
+          <span class="rank-wr muted">${wr}%</span>
+          <span class="muted small" style="min-width:44px;text-align:right">${p.games}pts</span>
+          <span class="rank-elo">${Math.round(p.rating)}</span>
+        </a>`;
+      }).join('') +
+      '</div>';
+  } catch(e) {
+    document.getElementById('app').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--er)">Erro ao carregar ranking</div>';
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

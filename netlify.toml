@@ -11,3 +11,13 @@
   [headers.values]
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
+
+[[redirects]]
+  from = "/player/:id"
+  to   = "/player.html?id=:id"
+  status = 200
+
+[[redirects]]
+  from = "/rank"
+  to   = "/rank.html"
+  status = 200

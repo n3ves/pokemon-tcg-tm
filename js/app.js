@@ -1614,6 +1614,60 @@ function renderTimerBlock(t) {
 }
 
 
+/* ── Changelog ───────────────────────────────────────────── */
+function tlog(t, msg) {
+  if (!t) return;
+  if (!t.log) t.log = [];
+  const now  = new Date();
+  const hhmm = now.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  t.log.push({ ts: Date.now(), hhmm, msg });
+  if (t.log.length > 200) t.log = t.log.slice(-200);
+}
+
+/* ── Timer sync helpers ──────────────────────────────────── */
+function _startTimerInterval() {
+  clearInterval(G.timerIv);
+  G.timerIv = setInterval(() => {
+    const t = ct(); if (!t) { clearInterval(G.timerIv); return; }
+    if (t.timerStartedAt && t._timerPausedAt == null) {
+      const elapsed = Math.floor((Date.now() - t.timerStartedAt) / 1000);
+      t._timer = Math.max(0, (t.settings.timerMinutes * 60) - elapsed);
+    }
+    if (!t.timerStartedAt || t._timerPausedAt != null) { clearInterval(G.timerIv); return; }
+    const s   = t._timer;
+    const el  = document.getElementById('tmr');
+    const cls = s < 300 ? 'tc2' : s < 600 ? 'tw' : '';
+    if (el) { el.textContent = fmt(s); el.className = 'timer ' + cls; }
+    const tot  = getPhaseMinutes(t) * 60;
+    const circ = Math.round(2 * Math.PI * 15);
+    const ring = document.getElementById('tmr-ring');
+    if (ring) {
+      const pct = tot > 0 ? (1 - s / tot) : 0;
+      ring.setAttribute('stroke-dashoffset', Math.round(circ * (1 - pct)));
+      ring.setAttribute('stroke', s < 300 ? 'var(--er)' : s < 600 ? 'var(--wt)' : 'var(--it)');
+    }
+    if (s === 600) notify('⏱ 10 minutos!', 'warn');
+    else if (s === 300) notify('⚠️ 5 minutos!', 'warn');
+    else if (s === 60)  notify('🚨 1 minuto!', 'warn');
+    else if (s === 0) {
+      clearInterval(G.timerIv);
+      if (el) { el.textContent = '00:00'; el.className = 'timer tc2'; }
+      notify('🔔 Tempo esgotado! Registre os resultados.', 'warn');
+      _playTimeUpSound();
+    }
+  }, 500);
+}
+
+function _resumeTimerIfNeeded() {
+  const t = ct(); if (!t) return;
+  if (t.timerStartedAt && t._timerPausedAt == null) {
+    const elapsed = Math.floor((Date.now() - t.timerStartedAt) / 1000);
+    t._timer  = Math.max(0, t.settings.timerMinutes * 60 - elapsed);
+    t._timerOn = true;
+    _startTimerInterval();
+  }
+}
+
 function _playTimeUpSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -3132,6 +3186,7 @@ function renderTour() {
     ...(t.topBracket?.length ? [{ id:'topcut', icon:'ti-tournament', label:'Top Cut' }] : []),
     ...(t.status==='finished' ? [{ id:'finished', icon:'ti-trophy', label:'Resultado' }] : []),
     { id:'debug',  icon:'ti-bug',      label:'Debug' },
+    { id:'log',    icon:'ti-history',  label:'Log' },
     { id:'export', icon:'ti-download', label:'Exportar' },
   ];
   const rnd = t.rounds[t.currentRound-1];
@@ -3146,6 +3201,7 @@ function renderTour() {
   else if (G.tab==='topcut')    body = renderTopCut(t);
   else if (G.tab==='finished')  body = renderFinished(t);
   else if (G.tab==='debug')     body = renderDebug(t);
+  else if (G.tab==='log')       body = renderLog(t);
   else if (G.tab==='export')    body = renderExport(t);
   else body = renderReg(t);
   return `
@@ -3190,6 +3246,18 @@ function renderReg(t) {
     <i class="ti ti-player-play"></i> Iniciar torneio</button>`:''}
 </div>
 ${t.status==='registration'?`
+<div class="well mb16 fx gap12" style="align-items:flex-start">
+  <i class="ti ti-qrcode" style="font-size:20px;color:var(--it);flex-shrink:0;margin-top:2px"></i>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:500;margin-bottom:4px">Link público para jogadores</div>
+    <div class="muted small mb8">Compartilhe para que cada jogador veja sua mesa e standings em tempo real</div>
+    <div class="fx gap6 wrap">
+      <a href="player.html?tour=${t.id}" target="_blank" class="btn btn-xs btn-p"><i class="ti ti-external-link"></i> Abrir exemplo</a>
+      <button class="btn btn-xs" onclick="copyTourLink('${t.id}')"><i class="ti ti-copy"></i> Copiar link base</button>
+      <a href="rank.html" target="_blank" class="btn btn-xs"><i class="ti ti-medal"></i> Ranking público</a>
+    </div>
+  </div>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
   <!-- BANCO DE JOGADORES -->
@@ -3812,6 +3880,35 @@ ${unranked.length>0?`
 <div class="muted small">
   <strong>${unranked.length}</strong> jogador${unranked.length!==1?'es':''} sem ranking (menos de 3 partidas)
 </div>`:''}`;
+}
+
+
+function renderLog(t) {
+  const log = [...(t.log||[])].reverse();
+  return `
+<div class="fx sb2 mb16">
+  <h2>Histórico de alterações</h2>
+  <span class="muted small">${log.length} entrada${log.length!==1?'s':''}</span>
+</div>
+${log.length===0
+  ? '<div class="empty"><i class="ti ti-history"></i><p>Nenhum registro ainda</p></div>'
+  : '<div class="card p0">' + [...(t.log||[])].reverse().map(e =>
+      '<div class="plr" style="gap:12px;padding:8px 16px">' +
+      '<span class="mono muted" style="font-size:11px;min-width:38px;flex-shrink:0">' + e.hhmm + '</span>' +
+      '<span style="font-size:13px">' + esc(e.msg) + '</span>' +
+      '</div>'
+    ).join('') + '</div>'
+}`;
+}
+
+
+function copyTourLink(tourId) {
+  const base = location.origin + location.pathname.replace('index.html','').replace(/\/$/, '');
+  const url  = base + '/player.html?tour=' + tourId;
+  navigator.clipboard.writeText(url).then(
+    () => notify('Link copiado! Cole no chat para os jogadores', 'ok'),
+    () => notify('URL: ' + url, 'ok')
+  );
 }
 
 function loadOffline() {
