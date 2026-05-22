@@ -1477,59 +1477,213 @@ function printStandings(tid) {
 
 function renderExport(t) {
   const canExportTDF = t.status === 'finished' || t.rounds.length > 0;
+  const venue       = G.venues.find(v=>v.id===t.venueId);
+  const orgName     = venue?.organizerName  || t.settings?.organizerName  || '';
+  const orgPopId    = venue?.organizerPopId || t.settings?.organizerPopId || '';
+  const hasOrg      = orgName && orgPopId;
+  const hasSanction = !!t.sanctionedId;
+  const hasPlayerId = t.players.every(p => {
+    const gp = G.players.find(x=>x.id===p.gid);
+    return gp?.playerId || p.playerId;
+  });
+
+  const warn = (ok, label) =>
+    `<div class="fx gap6 mb4 small ${ok?'':''}">
+      <i class="ti ti-${ok?'check':'alert-triangle'}" style="color:var(--${ok?'it':'wt'})"></i>
+      <span style="color:var(--${ok?'t1':'wt'})">${label}</span>
+    </div>`;
+
   return `
 <h2 class="mb16">Exportar / Importar</h2>
 
 <div class="card mb16" style="border:2px solid var(--it)">
-  <div class="fx gap8 mb8">
-    <span class="badge bi" style="font-size:13px;padding:4px 12px"><i class="ti ti-file-code"></i> TOM Data File (.tdf)</span>
-    <span class="badge bn small">Formato oficial Pokémon</span>
+  <div class="fx sb2 mb12">
+    <div class="fx gap8">
+      <span class="badge bi" style="font-size:13px;padding:4px 12px"><i class="ti ti-file-code"></i> TOM Data File (.tdf)</span>
+      <span class="badge bn small">Formato oficial Pokémon</span>
+    </div>
+    <button class="btn btn-xs" onclick="nav('tournament',{tab:'edit'});G.modal={type:'edit-tour'};render()">
+      <i class="ti ti-edit"></i> Editar dados
+    </button>
   </div>
-  <p class="muted small mb12">Gera o arquivo <strong>.tdf</strong> compatível com o TOM e o sistema de reporte oficial da Pokémon. Inclui jogadores, rodadas, resultados e standings por divisão.</p>
+
+  <div class="g2 gap16 mb12">
+    <div class="well">
+      <div class="lbl mb8">Checklist para submissão</div>
+      ${warn(canExportTDF, 'Pelo menos 1 rodada finalizada')}
+      ${warn(hasSanction, 'Sanction ID preenchido' + (hasSanction?' ('+esc(t.sanctionedId)+')':''))}
+      ${warn(hasOrg, 'Organizer no local' + (hasOrg?' ('+esc(orgName)+' · '+esc(orgPopId)+')':''))}
+      ${warn(hasPlayerId, 'Player IDs de todos os jogadores')}
+      ${warn(!!t.date, 'Data do evento preenchida')}
+    </div>
+    <div class="well">
+      <div class="lbl mb8">Dados do arquivo</div>
+      <div class="small mb4"><span class="muted">Torneio:</span> ${esc(t.name)}</div>
+      <div class="small mb4"><span class="muted">Data:</span> ${t.date||'—'}</div>
+      <div class="small mb4"><span class="muted">Rodadas:</span> ${t.rounds.length}/${t.settings.totalRounds}</div>
+      <div class="small mb4"><span class="muted">Jogadores:</span> ${t.players.length}</div>
+      <div class="small mb4"><span class="muted">Divisões:</span> ${[...new Set(t.players.map(p=>p.division))].join(', ')||'—'}</div>
+      <div class="small"><span class="muted">Status:</span> ${t.status}</div>
+    </div>
+  </div>
+
   <div class="fx gap8">
-    <button class="btn btn-p" ${canExportTDF?'':'disabled'} onclick="exportTDF('${t.id}')">
+    <button class="btn btn-p ${canExportTDF?'':'btn-disabled'}" ${canExportTDF?'':'disabled'} onclick="exportTDF('${t.id}')">
       <i class="ti ti-download"></i> Exportar .tdf
     </button>
     <button class="btn" onclick="importTDF()">
       <i class="ti ti-upload"></i> Importar .tdf
     </button>
-    ${!canExportTDF?`<span class="muted small">Finalize pelo menos 1 rodada para exportar</span>`:''}
   </div>
+  ${!canExportTDF?`<p class="muted small mt8">Finalize pelo menos 1 rodada para exportar.</p>`:''}
+  ${!hasSanction||!hasOrg?`<p class="muted small mt4">⚠ Submissão ao TOM requer Sanction ID e Organizer preenchidos.</p>`:''}
 </div>
 
 <div class="g2 gap16">
   <div class="card">
-    <h3 class="mb8">Backup completo (.json)</h3>
-    <p class="muted small mb12">Salva todos os dados internos do sistema.</p>
+    <h3 class="mb8"><i class="ti ti-database-export"></i> Backup (.json)</h3>
+    <p class="muted small mb12">Dados internos completos do torneio.</p>
     <button class="btn" onclick="exportTour('${t.id}')"><i class="ti ti-download"></i> Baixar .json</button>
   </div>
   <div class="card">
-    <h3 class="mb8">Restaurar backup</h3>
-    <p class="muted small mb12">Carrega um backup .json exportado anteriormente.</p>
+    <h3 class="mb8"><i class="ti ti-database-import"></i> Restaurar</h3>
+    <p class="muted small mb12">Carrega backup .json exportado anteriormente.</p>
     <button class="btn" onclick="importTour()"><i class="ti ti-upload"></i> Carregar .json</button>
   </div>
   <div class="card">
-    <h3 class="mb8">Standings (.csv)</h3>
-    <p class="muted small mb12">Classificação atual exportada para planilha.</p>
-    <button class="btn" onclick="exportCSV('${t.id}')"><i class="ti ti-table"></i> Baixar CSV</button>
+    <h3 class="mb8"><i class="ti ti-table"></i> Standings (.csv)</h3>
+    <p class="muted small mb12">Classificação atual para planilha.</p>
+    <button class="btn" onclick="exportCSV('${t.id}')"><i class="ti ti-download"></i> Baixar CSV</button>
   </div>
   <div class="card">
-    <h3 class="mb8">Lista de jogadores (.csv)</h3>
-    <p class="muted small mb12">Todos os jogadores inscritos no torneio.</p>
-    <button class="btn" onclick="exportPlayerCSV('${t.id}')"><i class="ti ti-users"></i> Baixar CSV</button>
+    <h3 class="mb8"><i class="ti ti-users"></i> Jogadores (.csv)</h3>
+    <p class="muted small mb12">Lista de inscritos no torneio.</p>
+    <button class="btn" onclick="exportPlayerCSV('${t.id}')"><i class="ti ti-download"></i> Baixar CSV</button>
   </div>
 </div>`;
 }
 
 /* ── TIMER (inline topbar) ── */
+// Regras oficiais Pokémon TCG de tempo por modo
+const TIMER_RULES = {
+  lc:   { swiss:50, topCut:75, swissBO:'BO3', topCutBO:'BO3', extraTurns:3 },
+  cup:  { swiss:50, topCut:75, swissBO:'BO3', topCutBO:'BO3', extraTurns:3 },
+  one:  { swiss:50, topCut:75, swissBO:'BO3', topCutBO:'BO3', extraTurns:3 },
+  cust: { swiss:50, topCut:75, swissBO:'BO3', topCutBO:'BO3', extraTurns:3 },
+};
+
+function getTimerRules(t) {
+  return TIMER_RULES[t.mode || t.settings?.mode || 'cup'] || TIMER_RULES.cup;
+}
+
+function getPhaseMinutes(t) {
+  const rules = getTimerRules(t);
+  return t.status === 'topcut' ? rules.topCut : rules.swiss;
+}
+
 function renderTimerBlock(t) {
-  const s = t._timer||0;
-  const cls = s<300?'tc2':s<600?'tw':'';
-  return `<div class="fx gap6 ml">
-    <span class="timer ${cls}" id="tmr">${fmt(s)}</span>
-    <button class="btn btn-sm" onclick="toggleTimer()" id="tmrbtn"><i class="ti ti-${t._timerOn?'player-pause':'player-play'}"></i></button>
-    <button class="btn btn-sm" onclick="resetTimer()"><i class="ti ti-refresh"></i></button>
+  const s   = t._timer != null ? t._timer : getPhaseMinutes(t)*60;
+  const tot = getPhaseMinutes(t)*60;
+  const pct = tot > 0 ? Math.round((1 - s/tot)*100) : 0;
+  const cls = s <= 0 ? 'tc2' : s < 300 ? 'tc2' : s < 600 ? 'tw' : '';
+  const rules = getTimerRules(t);
+  const phase = t.status === 'topcut' ? 'Top Cut' : 'Swiss';
+  const bo    = t.status === 'topcut' ? rules.topCutBO : rules.swissBO;
+  return `<div class="fx gap6 ml" style="align-items:center">
+    <div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1">
+      <span class="timer ${cls}" id="tmr" style="font-size:22px;font-weight:700;font-variant-numeric:tabular-nums">${fmt(s)}</span>
+      <span style="font-size:10px;color:var(--t2)">${phase} · ${bo} · ${getPhaseMinutes(t)}min</span>
+    </div>
+    <div style="width:36px;height:36px;position:relative;flex-shrink:0">
+      <svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(-90deg)">
+        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bd)" stroke-width="3"/>
+        <circle cx="18" cy="18" r="15" fill="none" stroke="${s<300?'var(--er)':s<600?'var(--wt)':'var(--it)'}" stroke-width="3"
+          stroke-dasharray="${Math.round(2*Math.PI*15)}"
+          stroke-dashoffset="${Math.round(2*Math.PI*15*(1-pct/100))}"
+          stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="fx gap4">
+      <button class="btn btn-sm" onclick="toggleTimer()" id="tmrbtn" title="${t._timerOn?'Pausar':'Iniciar'}">
+        <i class="ti ti-${t._timerOn?'player-pause':'player-play'}"></i>
+      </button>
+      <button class="btn btn-sm" onclick="resetTimer()" title="Resetar"><i class="ti ti-refresh"></i></button>
+      <button class="btn btn-sm" onclick="openTimerConfig()" title="Configurar timer"><i class="ti ti-settings"></i></button>
+    </div>
   </div>`;
+}
+
+
+function _playTimeUpSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // 3 bips descendentes
+    [[880,0],[660,0.3],[440,0.6]].forEach(([freq, delay]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.4);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.5);
+    });
+  } catch(e) { /* AudioContext não disponível */ }
+}
+
+function openTimerConfig() {
+  const t = ct(); if (!t) return;
+  const rules = getTimerRules(t);
+  G.modal = { type: 'timer-config' };
+  render();
+}
+
+function renderTimerConfigModal() {
+  const t = ct(); if (!t) return '';
+  const rules   = getTimerRules(t);
+  const curMins = t.settings?.timerMinutes || getPhaseMinutes(t);
+  return `
+<div class="mtitle"><i class="ti ti-clock"></i> Configurar timer da rodada</div>
+<div class="card mb12" style="background:var(--s1);border:none">
+  <div class="lbl mb4">Regras oficiais para este modo (${(t.mode||'cup').toUpperCase()})</div>
+  <div class="g2">
+    <div class="well tc">
+      <div style="font-size:18px;font-weight:700">${rules.swiss}min</div>
+      <div class="muted small">Swiss (${rules.swissBO})</div>
+    </div>
+    <div class="well tc">
+      <div style="font-size:18px;font-weight:700">${rules.topCut}min</div>
+      <div class="muted small">Top Cut (${rules.topCutBO})</div>
+    </div>
+  </div>
+  <div class="muted small mt8">+${rules.extraTurns} turnos extras após o tempo</div>
+</div>
+<div class="f mb12">
+  <label>Tempo customizado (min)</label>
+  <input type="number" id="tcfg-min" min="5" max="120" value="${curMins}" style="font-size:18px;text-align:center">
+</div>
+<div class="g2 mb4">
+  ${[20,30,50,60].map(m=>`<button class="btn" onclick="document.getElementById('tcfg-min').value=${m}">${m}min</button>`).join('')}
+</div>
+<div class="sep"></div>
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="applyTimerConfig()"><i class="ti ti-check"></i> Aplicar e resetar</button>
+</div>`;
+}
+
+function applyTimerConfig() {
+  const t = ct(); if (!t) return;
+  const mins = parseInt(document.getElementById('tcfg-min')?.value) || 50;
+  mtour(t => {
+    t.settings.timerMinutes = mins;
+    t._timer   = mins * 60;
+    t._timerOn = false;
+    clearInterval(G.timerIv);
+  });
+  closeM();
+  notify(`Timer configurado: ${mins} min`, 'ok');
 }
 
 function renderSettings() {
@@ -1663,7 +1817,8 @@ function renderModal() {
   if (m.type === 'login') { body = renderLoginModal(); maxW = '360px'; }
   if (m.type === 'venue') { body = renderVenueModal(); }
   if (m.type === 'arch') { body = renderArchModal(); }
-  if (m.type === 'deck') { body = renderDeckModal(); }
+  if (m.type === 'deck')         { body = renderDeckModal(); }
+  if (m.type === 'timer-config') { body = renderTimerConfigModal(); maxW = '420px'; }
 
   if (m.type === 'judge') {
     const t = ct(), rnd = t?.rounds[t.currentRound-1];
@@ -2035,6 +2190,10 @@ function startTour() {
   if (t.settings.topCutSize===undefined) t.settings.topCutSize=recCut(n,t.settings.mode);
   const {pairings,log,seed} = generateSwiss(t);
   t.rounds.push({number:1,pairings,pairingLog:log,seed,timestamp:Date.now()});
+  if (!t.settings.timerMinutes) {
+    const rules = TIMER_RULES[t.mode||'cup']||TIMER_RULES.cup;
+    t.settings.timerMinutes = rules.swiss;
+  }
   t.currentRound=1; t.status='rounds'; t._timer=t.settings.timerMinutes*60;
   G.lastLog=log; G.tab='rounds';
   saveAll(); render();
@@ -2129,8 +2288,20 @@ function toggleTimer() {
       if(t._timer>0){
         t._timer--;
         const el=document.getElementById('tmr');
-        if(el){el.textContent=fmt(t._timer);el.className=`timer ${t._timer<300?'tc2':t._timer<600?'tw':''}`;}
-      } else {t._timerOn=false;clearInterval(G.timerIv);render();}
+        const cls=t._timer<300?'tc2':t._timer<600?'tw':'';
+        if(el){el.textContent=fmt(t._timer);el.className='timer '+cls;}
+        // Alertas nos marcos oficiais
+        if(t._timer===600) notify('⏱ 10 minutos!','warn');
+        else if(t._timer===300) notify('⚠️ 5 minutos!','warn');
+        else if(t._timer===60)  notify('🚨 1 minuto!','warn');
+      } else {
+        t._timerOn=false; clearInterval(G.timerIv);
+        const el=document.getElementById('tmr');
+        if(el){el.textContent='00:00';el.className='timer tc2';}
+        notify('🔔 Tempo esgotado! Registre os resultados.','warn');
+        _playTimeUpSound();
+        render();
+      }
     },1000);
   } else clearInterval(G.timerIv);
   saveAll(); render();
