@@ -255,7 +255,7 @@ function stbadge(t) {
 }
 function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
 function resolveName(p) { return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
-function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); return p ? p.division : 'Masters'; }
+function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return 'Masters'; const gp = G.players.find(x=>x.id===p.gid); return gp?.division || p.division || 'Masters'; }
 // bd aceita: ano "2005", ISO "2005-02-27", TDF "02/27/2005"
 function extractYear(bd) {
   if (!bd) return null;
@@ -2000,15 +2000,7 @@ function savePlayer(id, addToTourId) {
   if (id) {
     const i = G.players.findIndex(p=>p.id===id);
     if (i>=0) G.players[i]={...G.players[i],...data};
-    // Propaga nome e divisão para todos os torneios que têm este jogador
-    G.tours.forEach(t => {
-      t.players.forEach(tp => {
-        if (tp.gid === id) {
-          tp.name     = data.name;
-          tp.division = data.division;
-        }
-      });
-    });
+
   } else {
     const np = {id:uid(), createdAt:Date.now(), ...data};
     G.players.push(np);

@@ -1,3 +1,18 @@
+// Resolve a divisão de um tournament player a partir do cadastro global (G.players)
+// Fonte única de verdade: G.players[gid].division
+function resolveDiv(tp) {
+  if (typeof G !== 'undefined' && G.players) {
+    const gp = G.players.find(x => x.id === tp.gid);
+    if (gp && gp.division) return gp.division;
+  }
+  return tp.division || 'Masters';
+}
+
+// Enriquece o array de players de um torneio com a divisão atual do cadastro
+function resolvePlayers(players) {
+  return players.map(p => ({ ...p, division: resolveDiv(p) }));
+}
+
 'use strict';
 // ─── Stats engine ────────────────────────────────────────────
 // Motor de estatísticas: OWP, OOWP, standings
@@ -87,6 +102,7 @@ function oowp(pid, rounds, players) {
   return o.map(id => owp(id, rounds, players)).reduce((a,b)=>a+b,0) / o.length;
 }
 function getStandings(players, rounds, divFilter) {
+  players = resolvePlayers(players);
   const list = players
     .filter(p => !p.dq && (!divFilter || p.division === divFilter))
     .map(p => {
@@ -147,6 +163,7 @@ function getStandings(players, rounds, divFilter) {
    7. All randomisation is seeded and reproducible
 ═══════════════════════════════════════════════════════════════ */
 function generateSwiss(tournament) {
+  tournament.players = resolvePlayers(tournament.players);
   const { players, rounds, settings } = tournament;
   const log = [];
   const roundNum = rounds.length + 1;
@@ -433,6 +450,7 @@ function greedyPair(group, oppMap, rng, divLog) {
 
 
 function generateSwiss(tournament) {
+  tournament.players = resolvePlayers(tournament.players);
   const { players, rounds, settings } = tournament;
   const log = [];
   const roundNum = rounds.length + 1;
