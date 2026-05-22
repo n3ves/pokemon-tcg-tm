@@ -49,36 +49,37 @@ function p1Count(pid, rounds) {
       if (p.p1 === pid && !p.isBye) c++;
   return c;
 }
-// Win% para cálculo de OWP (regra oficial Pokémon 5.3.3.1):
-// • BYE rounds excluídos do numerador E denominador
-// • Jogos contra o próprio `excludePid` são excluídos (regra oficial)
-// • Dropped players: cap máximo de 75%
-// • Mínimo: 25%
-function winPctForOWP(pid, rounds, players, excludePid) {
+// Win% para cálculo de OWP (fórmula oficial Pokémon / TOM):
+// • Empates contam como 0.5 vitória: (W + 0.5×T) / (W+L+T)
+// • BYEs excluídos do numerador e denominador
+// • Mínimo 25% (floor oficial)
+// • Dropped players: cap máximo 75%
+// NÃO exclui jogos contra o próprio jogador (regra oficial não prevê isso)
+function winPctForOWP(pid, rounds, players) {
   const isDropped = players?.find(p=>p.id===pid)?.dropped || false;
-  let w = 0, total = 0;
+  let w = 0, l = 0, t = 0;
   for (const rnd of rounds) {
     for (const p of rnd.pairings) {
       if (p.result === null || p.result === undefined) continue;
-      // BYE: não conta
-      if (p.p2 === 'BYE' && p.p1 === pid) continue;
+      if (p.p2 === 'BYE' && p.p1 === pid) continue; // BYE não conta
       const is1 = p.p1 === pid, is2 = p.p2 === pid;
       if (!is1 && !is2) continue;
-      // Exclui a partida contra o jogador para quem estamos calculando OWP
-      if (excludePid && ((is1 && p.p2 === excludePid) || (is2 && p.p1 === excludePid))) continue;
-      total++;
-      if ((p.result===R.P1&&is1)||(p.result===R.P2&&is2)) w++;
+      if (p.result === R.TIE)                                   { t++; }
+      else if (p.result === R.DL)                               { l++; }
+      else if ((p.result===R.P1&&is1)||(p.result===R.P2&&is2)) { w++; }
+      else                                                       { l++; }
     }
   }
+  const total = w + l + t;
   if (!total) return 0.25;
+  const raw    = (w + 0.5 * t) / total;
   const maxPct = isDropped ? 0.75 : 1.0;
-  return Math.max(0.25, Math.min(maxPct, w / total));
+  return Math.max(0.25, Math.min(maxPct, raw));
 }
 function owp(pid, rounds, players) {
   const o = getOpps(pid, rounds);
   if (!o.length) return 0;
-  // Passa pid como excludePid — remove a partida contra pid do cálculo de cada adversário
-  return o.map(id => winPctForOWP(id, rounds, players, pid)).reduce((a,b)=>a+b,0) / o.length;
+  return o.map(id => winPctForOWP(id, rounds, players)).reduce((a,b)=>a+b,0) / o.length;
 }
 function oowp(pid, rounds, players) {
   const o = getOpps(pid, rounds);
