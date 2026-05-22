@@ -2000,6 +2000,15 @@ function savePlayer(id, addToTourId) {
   if (id) {
     const i = G.players.findIndex(p=>p.id===id);
     if (i>=0) G.players[i]={...G.players[i],...data};
+    // Propaga nome e divisão para todos os torneios que têm este jogador
+    G.tours.forEach(t => {
+      t.players.forEach(tp => {
+        if (tp.gid === id) {
+          tp.name     = data.name;
+          tp.division = data.division;
+        }
+      });
+    });
   } else {
     const np = {id:uid(), createdAt:Date.now(), ...data};
     G.players.push(np);
