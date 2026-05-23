@@ -2190,7 +2190,7 @@ function _refreshRegPlayerList(t) {
     const pid = gp?.playerId || p.gid || p.id;
     return '<div class="plr">' +
       '<span class="mono muted" style="min-width:24px">' + (i+1) + '</span>' +
-      '<span style="flex:1">' + esc(p.name) + '</span>' + dbadge(p.division) +
+      '<span style="flex:1">' + esc(resolveName(p)) + '</span>' + dbadge(p.division) +
       '<a href="player.html?id=' + encodeURIComponent(pid) + '&tour=' + t.id + '" target="_blank" class="ib" title="Página pública"><i class="ti ti-external-link"></i></a>' +
       '<button class="ib" onclick="removeFromTour(\'' + p.id + '\')"><i class="ti ti-x"></i></button>' +
       '</div>';
@@ -3315,7 +3315,7 @@ ${t.status==='registration'?`
 <div class="card p0">
 ${t.players.map((p,i)=>`<div class="plr">
   <span class="mono muted" style="min-width:24px">${i+1}</span>
-  <span style="flex:1">${esc(p.name)}</span>${dbadge(p.division)}
+  <span style="flex:1">${esc(resolveName(p))}</span>${dbadge(p.division)}
   ${p.dropped?`<span class="badge bn">Dropped</span>`:''}
   ${p.dq?`<span class="badge bd">DQ</span>`:''}
 </div>`).join('')}

@@ -65,17 +65,17 @@ function p1Count(pid, rounds) {
   return c;
 }
 // Win% para cálculo de OWP — fórmula confirmada contra TOM:
-// WP = min(0.75, max(0.25, (W + 0.5×T) / (W+L+T)))
-// • Empates = 0.5 vitória no numerador
-// • Cap 75% para TODOS os jogadores (dropped e não-dropped)
-// • Floor 25% para todos
-// • BYEs excluídos
+// • BYE vale 0.5 vitória (não 1.0) e conta no denominador
+// • Empate vale 0.5 vitória
+// • WP = (W_real + 0.5*BYE + 0.5*T) / total_rounds
+// • Floor 25%, sem cap superior para jogadores ativos
+// • Dropped: cap 75%
 function winPctForOWP(pid, rounds, players) {
-  let w = 0, l = 0, t = 0;
+  let w = 0, l = 0, t = 0, bye = 0;
   for (const rnd of rounds) {
     for (const p of rnd.pairings) {
       if (p.result === null || p.result === undefined) continue;
-      if (p.p2 === 'BYE' && p.p1 === pid) continue;
+      if (p.p2 === 'BYE' && p.p1 === pid) { bye++; continue; }
       const is1 = p.p1 === pid, is2 = p.p2 === pid;
       if (!is1 && !is2) continue;
       if      (p.result === R.TIE)                                    t++;
@@ -84,9 +84,14 @@ function winPctForOWP(pid, rounds, players) {
       else                                                             l++;
     }
   }
-  const total = w + l + t;
+  const total = w + l + t + bye;
   if (!total) return 0.25;
-  return Math.min(0.75, Math.max(0.25, (w + 0.5 * t) / total));
+  const isDropped = players?.find(p => p.id === pid)?.dropped || false;
+  const pts = w + 0.5 * bye + 0.5 * t;
+  const raw = pts / total;
+  return isDropped
+    ? Math.min(0.75, Math.max(0.25, raw))
+    : Math.max(0.25, raw);
 }
 function owp(pid, rounds, players) {
   const o = getOpps(pid, rounds);
@@ -808,21 +813,20 @@ function parseTDF(xmlStr) {
     });
   }
 
-  // Try to link to global player DB by playerId (exact) or name (norm)
+  // Vincula ao cadastro global SOMENTE por playerId exato — nome não é confiável
+  const claimedGids = new Set();
   for (const tp of uidMap.values()) {
+    if (!tp.playerId) continue;
     const gp = G.players.find(p =>
-      (tp.playerId && p.playerId && p.playerId === tp.playerId) ||
-      norm(p.name) === norm(tp.name)
+      !claimedGids.has(p.id) &&
+      p.playerId &&
+      p.playerId === tp.playerId
     );
     if (gp) {
-      tp.gid  = gp.id;
-      tp.name = gp.name || tp.name; // prefer global DB name (has proper casing/accents)
-      // Sync playerId back to global DB if it was missing
-      if (tp.playerId && !gp.playerId) {
-        gp.playerId  = tp.playerId;
-        gp.birthDate = gp.birthDate || tp.birthDate;
-      }
-      tp.division = gp.division; // pod category is applied below
+      claimedGids.add(gp.id);
+      tp.gid      = gp.id;
+      tp.name     = gp.name || tp.name;
+      tp.division = gp.division;
     }
   }
 
