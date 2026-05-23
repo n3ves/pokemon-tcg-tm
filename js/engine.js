@@ -877,15 +877,24 @@ function parseTDF(xmlStr) {
 
       for (const mEl of rndEl.querySelectorAll('matches > match')) {
         const outcomeAttr = parseInt(mEl.getAttribute('outcome') ?? '0');
-        const p1UserId    = mEl.querySelector('player1')?.getAttribute('userid');
-        const p2UserId    = mEl.querySelector('player2')?.getAttribute('userid');
         const tableNum    = parseInt(mEl.querySelector('tablenumber')?.textContent || '0') || null;
+
+        // outcome=5 → BYE com <player userid="X"/> (sem player1/player2)
+        const isByeOutcome = outcomeAttr === 5;
+        const singlePlayer = mEl.querySelector(':scope > player');
+
+        const p1UserId = isByeOutcome
+          ? singlePlayer?.getAttribute('userid')
+          : mEl.querySelector('player1')?.getAttribute('userid');
+        const p2UserId = isByeOutcome
+          ? null
+          : mEl.querySelector('player2')?.getAttribute('userid');
 
         const tp1 = p1UserId ? uidMap.get(p1UserId) : null;
         const tp2 = p2UserId ? uidMap.get(p2UserId) : null;
         if (!tp1) continue;
 
-        const isBye  = !tp2;
+        const isBye  = isByeOutcome || !tp2;
         const result = isBye ? R.BYE : (TDF_OUT_TO_R[outcomeAttr] || null);
 
         rnd.pairings.push({
