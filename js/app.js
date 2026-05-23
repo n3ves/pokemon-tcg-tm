@@ -173,7 +173,7 @@ function ctAddPlayer(gid) {
   const gp = G.players.find(p => p.id === gid);
   if (!gp) return;
   if (G._ctd.players.some(p => p.gid === gid)) return notify('Já adicionado','warn');
-  G._ctd.players.push({ id: uid(), gid, name: gp.name, division: gp.division, dropped:false, dq:false, hadBye:false });
+  G._ctd.players.push({ id: uid(), gid: gp.playerId||gp.id, name: gp.name, division: gp.division, dropped:false, dq:false, hadBye:false });
   _refreshCTPlayerPanel();
 }
 
@@ -187,7 +187,7 @@ function renderCTPlayerSearch(q) {
   const el = document.getElementById('ct-pres');
   if (!el) return;
   if (!q || q.length < 1) { el.innerHTML=''; return; }
-  const have = new Set((G._ctd?.players||[]).map(p=>p.gid));
+  const have = new Set((G._ctd?.players||[]).map(p=>p.gid).filter(Boolean));
   const found = G.players.filter(p => !have.has(p.id) && (
     norm(p.name).includes(norm(q)) ||
     norm(p.playerId||'').includes(norm(q))
@@ -254,8 +254,8 @@ function stbadge(t) {
   return `<span class="badge ${m[t.status]||'bn'}">${l[t.status]||t.status}</span>`;
 }
 function pname(id, t) { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return '?'; return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
-function resolveName(p) { return p.name || G.players.find(x=>x.id===p.gid)?.name || (p.playerId&&G.players.find(x=>x.playerId===p.playerId)?.name) || '?'; }
-function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return 'Masters'; const gp = G.players.find(x=>x.id===p.gid); return gp?.division || p.division || 'Masters'; }
+function resolveName(p) { const pid=p.gid||p.playerId; const gp=pid?G.players.find(x=>x.playerId===pid||x.id===pid):null; return p.name||gp?.name||'?'; }
+function pdiv(id, t)  { const p = (t||ct())?.players.find(x=>x.id===id); if (!p) return 'Masters'; const pid=p.gid||p.playerId; const gp=pid?G.players.find(x=>x.playerId===pid||x.id===pid):null; return gp?.division||p.division||'Masters'; }
 // bd aceita: ano "2005", ISO "2005-02-27", TDF "02/27/2005"
 function extractYear(bd) {
   if (!bd) return null;
@@ -616,7 +616,7 @@ function svgDonut(values, colors, size=140) {
 
 // Match tournament player to global player (by gid OR playerId)
 function tpMatchesGP(tp, gp) {
-  return (tp.gid && tp.gid === gp.id) ||
+  return (tp.gid && (tp.gid === gp.playerId || tp.gid === gp.id)) ||
          (tp.playerId && gp.playerId && tp.playerId === gp.playerId);
 }
 function renderPDetail() {
@@ -2163,8 +2163,8 @@ function delTour(id) {
 function addFromDB(gid) {
   const t=ct(); if(!t)return;
   const gp=G.players.find(p=>p.id===gid); if(!gp)return;
-  if (t.players.some(p=>p.gid===gid)) return notify('Já registrado','warn');
-  t.players.push({id:uid(),gid,name:gp.name,division:gp.division,dropped:false,dq:false,hadBye:false});
+  const gidKey=gp.playerId||gp.id; if (t.players.some(p=>p.gid===gidKey)) return notify('Já registrado','warn');
+  t.players.push({id:uid(),gid:gp.playerId||gp.id,name:gp.name,division:gp.division,dropped:false,dq:false,hadBye:false});
   saveAll();
   // Limpa search
   const inp=document.getElementById('reg-q'); if(inp) inp.value='';
@@ -2187,7 +2187,7 @@ function _refreshRegPlayerList(t) {
   }
   el.innerHTML = t.players.map((p,i) => {
     const gp  = G.players.find(x => x.id === p.gid);
-    const pid = gp?.playerId || p.gid || p.id;
+    const pid = p.gid || gp?.playerId || p.id;
     return '<div class="plr">' +
       '<span class="mono muted" style="min-width:24px">' + (i+1) + '</span>' +
       '<span style="flex:1">' + esc(resolveName(p)) + '</span>' + dbadge(p.division) +
@@ -2219,7 +2219,7 @@ function addBulk() {
   txt.split('\n').map(l=>l.trim()).filter(Boolean).forEach(name=>{
     let gp=G.players.find(p=>norm(p.name)===norm(name));
     if(!gp){gp={id:uid(),name,division:div,createdAt:Date.now(),nickname:'',playerId:'',city:'',state:'',birthDate:'',contact:'',notes:''};G.players.push(gp);}
-    if(!t.players.some(p=>p.gid===gp.id)){t.players.push({id:uid(),gid:gp.id,name:gp.name,division:div,dropped:false,dq:false,hadBye:false});added++;}
+    if(!t.players.some(p=>p.gid===(gp.playerId||gp.id))){t.players.push({id:uid(),gid:gp.playerId||gp.id,name:gp.name,division:div,dropped:false,dq:false,hadBye:false});added++;}
   });
   saveAll(); notify(added + ' jogador' + (added!==1?'es':'') + ' adicionado' + (added!==1?'s':''),'ok');
   const _tb=ct(); if(_tb){_refreshRegPlayerList(_tb);_updateRegHeader(_tb);}
@@ -3456,7 +3456,7 @@ function standTable(stand, t) {
       <td class="mono" style="font-weight:${i<3&&!p.dropped?700:400}">
         ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
       </td>
-      <td><div class="fx gap6">${esc(p.name||G.players.find(x=>x.id===p.gid)?.name||'?')} ${dbadge(p.division)}</div>
+      <td><div class="fx gap6">${esc(p.name||(()=>{const pid=p.gid||p.playerId;return pid?G.players.find(x=>x.playerId===pid||x.id===pid)?.name:null;})()||'?')} ${dbadge(p.division)}</div>
         ${p.dropped?'<div class="muted small">Dropped</div>':''}
       </td>
       ${showDeck?`<td><span class="muted small">${esc(tp?.deckArchetype||'—')}</span></td>`:''}
@@ -3712,7 +3712,7 @@ function renderSeasons() {
     if (!byYear[s.year]) byYear[s.year] = { tours:0, players:new Set(), finished:0 };
     byYear[s.year].tours += s.tours.length;
     s.tours.forEach(t => {
-      t.players.forEach(p => byYear[s.year].players.add(p.gid||p.id));
+      t.players.forEach(p => byYear[s.year].players.add(p.gid||p.playerId||p.id));
       if (t.status==='finished') byYear[s.year].finished++;
     });
   });
@@ -3792,13 +3792,12 @@ function calcElo() {
   const MODE_K = { lc:0.5, cup:1.0, one:2.0, cust:0.75 };
   const ratings = {};
 
-  // Sort tournaments by date
   const sorted = [...G.tours]
     .filter(t => t.status==='finished' && t.rounds.length>0)
     .sort((a,b) => (a.date||a.createdAt) > (b.date||b.createdAt) ? 1 : -1);
 
   function getRating(id) {
-    if (!ratings[id]) ratings[id] = { rating:1500, w:0, l:0, t:0, games:0, history:[] };
+    if (!ratings[id]) ratings[id] = { rating:1500, w:0, l:0, t:0, games:0 };
     return ratings[id];
   }
   function expScore(rA, rB) { return 1 / (1 + Math.pow(10, (rB-rA)/400)); }
@@ -3812,8 +3811,8 @@ function calcElo() {
         const p2 = tour.players.find(x=>x.id===p.p2);
         if (!p1||!p2) return;
 
-        // Use gid if available, else tournament-scoped id
-        const id1 = p1.gid||p1.id, id2 = p2.gid||p2.id;
+        // Só conta se ambos têm gid (vinculados ao cadastro global)
+        const id1 = p1.gid, id2 = p2.gid;
         if (!id1||!id2) return;
 
         const r1 = getRating(id1), r2 = getRating(id2);
@@ -3821,10 +3820,10 @@ function calcElo() {
         const exp2 = 1 - exp1;
 
         let s1=0, s2=0;
-        if (p.result===R.P1)  { s1=1; s2=0; r1.w++; r2.l++; }
-        else if (p.result===R.P2) { s1=0; s2=1; r1.l++; r2.w++; }
-        else if (p.result===R.TIE){ s1=0.5; s2=0.5; r1.t++; r2.t++; }
-        else return; // DL — não conta
+        if      (p.result===R.P1)  { s1=1;   s2=0;   r1.w++; r2.l++; }
+        else if (p.result===R.P2)  { s1=0;   s2=1;   r1.l++; r2.w++; }
+        else if (p.result===R.TIE) { s1=0.5; s2=0.5; r1.t++; r2.t++; }
+        else return;
 
         const delta1 = K*(s1-exp1), delta2 = K*(s2-exp2);
         r1.rating = Math.max(100, r1.rating + delta1);
@@ -3839,10 +3838,11 @@ function calcElo() {
 
 function renderRanking() {
   const ratings = calcElo();
+  const MIN_GAMES = 1;
   const players = G.players
     .map(gp => {
-      const r = ratings[gp.id];
-      if (!r || r.games < 3) return null;
+      const r = ratings[gp.playerId] || ratings[gp.id];
+      if (!r || r.games < MIN_GAMES) return null;
       const gp2 = { ...gp, ...r };
       gp2.wr = r.games > 0 ? Math.round(r.w/r.games*100) : 0;
       return gp2;
@@ -3852,14 +3852,14 @@ function renderRanking() {
 
   const unranked = G.players.filter(gp => {
     const r = ratings[gp.id];
-    return !r || r.games < 3;
+    return !r || r.games < MIN_GAMES;
   });
 
   return `
 <div class="fx sb2 mb16">
   <div>
     <h1 class="mb4">Ranking Global</h1>
-    <div class="muted small">ELO modificado · mínimo 3 partidas · K=32 (LC×0.5, Cup×1.0, Champ×2.0)</div>
+    <div class="muted small">ELO modificado · K=32 (LC×0.5, Cup×1.0, Champ×2.0) · só jogadores vinculados ao cadastro</div>
   </div>
 </div>
 ${players.length===0?`<div class="card"><div class="empty"><i class="ti ti-trophy"></i><p>Nenhum jogador rankeado ainda.<br><span class="small">São necessárias ao menos 3 partidas em torneios finalizados.</span></p></div></div>`:`
@@ -3952,8 +3952,8 @@ function renderLinkPlayersModal() {
   // Encontra jogadores do torneio sem gid ou com gid mas nome vazio no banco
   const unlinked = t.players.filter(tp => {
     if (!tp.gid) return true;
-    const gp = G.players.find(x => x.id === tp.gid);
-    return !gp; // gid aponta para jogador que não existe no banco
+    const gp = G.players.find(x => x.playerId === tp.gid || x.id === tp.gid);
+    return !gp;
   });
 
   if (!unlinked.length) return `
@@ -4032,7 +4032,7 @@ function applyLinkPlayers(tourId) {
       // Vincular ao cadastro existente
       const gp = G.players.find(x => x.id === s.selectedGid);
       if (gp) {
-        s.tp.gid      = gp.id;
+        s.tp.gid      = gp.playerId || gp.id;
         s.tp.name     = gp.name;
         s.tp.division = gp.division;
         linked++;
@@ -4049,7 +4049,7 @@ function applyLinkPlayers(tourId) {
         createdAt: Date.now(),
       };
       G.players.push(newGP);
-      s.tp.gid = newGP.id;
+      s.tp.gid = newGP.playerId || newGP.id;
       created++;
     }
   });

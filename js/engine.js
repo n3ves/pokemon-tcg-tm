@@ -2,7 +2,8 @@
 // Fonte única de verdade: G.players[gid].division
 function resolveDiv(tp) {
   if (typeof G !== 'undefined' && G.players) {
-    const gp = G.players.find(x => x.id === tp.gid);
+    const pid = tp.gid || tp.playerId;
+    const gp = pid ? G.players.find(x => x.playerId === pid || x.id === pid) : null;
     if (gp && gp.division) return gp.division;
   }
   return tp.division || 'Masters';
@@ -824,7 +825,7 @@ function parseTDF(xmlStr) {
     );
     if (gp) {
       claimedGids.add(gp.id);
-      tp.gid      = gp.id;
+      tp.gid      = gp.playerId || gp.id;  // use playerId as universal key
       tp.name     = gp.name || tp.name;
       tp.division = gp.division;
     }
@@ -845,7 +846,7 @@ function parseTDF(xmlStr) {
       city:      '', state:    '', contact: '', notes: 'Importado via TDF',
     };
     if (typeof G !== 'undefined' && G.players) G.players.push(newGP);
-    tp.gid    = newGP.id;
+    tp.gid    = newGP.playerId || newGP.id;  // use playerId as universal key
     _newGPs.push(newGP);
   }
 
@@ -982,7 +983,8 @@ function generateTDF(t) {
 
   // ── Helper: get userId for a tournament-player ───────────
   function getUserId(tp) {
-    const gp = G.players.find(x => x.id === tp.gid);
+    const pid = tp.gid || tp.playerId;
+    const gp = pid ? G.players.find(x => x.playerId === pid || x.id === pid) : null;
     return tp.playerId || gp?.playerId || String(tp.id).slice(0,6).toUpperCase();
   }
 
