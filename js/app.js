@@ -83,7 +83,7 @@ function mtour(fn) {
   fn(t);
   // Save to both localStorage and Supabase (just this tournament)
   DB.save(SK.TN, G.tours);
-  SB.saveTournament(t).then(()=>setSyncStatus('ok')).catch(e=>{setSyncStatus('error',e.message);});
+  SB.saveTournament(t).then(()=>{G._lastSync=Date.now();setSyncStatus('ok');}).catch(e=>{setSyncStatus('error',e.message);});
   render();
 }
 
@@ -1954,8 +1954,9 @@ function render() {
 
   app.innerHTML = `
   ${!isTour ? `<div class="tb">
-    <strong style="font-size:15px;letter-spacing:-.3px">Jerry</strong>
+    <strong style="font-size:15px;letter-spacing:-.3px">🎴 Jerry</strong>
     <span class="badge bn" style="font-size:10px">v${VER}</span>
+    ${G._lastSync ? `<span class="muted" style="font-size:10px" title="Última sincronização">⟳ ${new Date(G._lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
       ${isLoggedIn()
         ? `<span class="muted" style="font-size:11px">${esc(G.auth.email.split('@')[0])}</span>
@@ -1968,7 +1969,17 @@ function render() {
   </div>` : ''}
   <div class="layout">
     ${sidebar}
-    <div class="${isTour?'full-main':'main'}">${content}</div>
+    <div class="${isTour?'full-main':'main'}">
+      ${!isTour ? _renderMissingPlayerIdBanner() : ''}
+      ${content}
+      ${!isTour ? `<footer style="margin-top:32px;padding:16px 0 8px;border-top:1px solid var(--bd);text-align:center">
+        <div class="muted" style="font-size:11px;line-height:1.6">
+          <strong>Jerry</strong> v${VER} — Ferramenta não oficial criada por players, para players.<br>
+          Não é afiliada, endossada ou aprovada pela Pokémon Company International.<br>
+          Desenvolvido por <strong>Daniel Neves</strong> (<a href="https://instagram.com/nevesvailan" target="_blank" style="color:var(--it)">@nevesvailan</a>) · Apoio: <strong>Eric Arruda</strong> e <strong>Vinicius Junger</strong>
+        </div>
+      </footer>` : ''}
+    </div>
   </div>
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
@@ -4060,6 +4071,27 @@ function applyLinkPlayers(tourId) {
   notify(`${linked} vinculado${linked!==1?'s':''}, ${created} criado${created!==1?'s':''}`, 'ok');
 }
 
+
+function _renderMissingPlayerIdBanner() {
+  const missing = G.players.filter(p => !p.playerId);
+  if (!missing.length) return '';
+  return `<div class="well mb16" style="border:1px solid var(--wt);background:var(--wb);border-radius:10px;padding:10px 14px">
+    <div class="fx gap8">
+      <i class="ti ti-alert-triangle" style="color:var(--wt);flex-shrink:0;margin-top:2px"></i>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--wt)">
+          ${missing.length} jogador${missing.length>1?'es':''} sem Player ID Pokémon
+        </div>
+        <div class="small mt4" style="color:var(--wt);opacity:.85">
+          ${missing.slice(0,3).map(p=>`<strong>${esc(p.name||'?')}</strong>`).join(', ')}${missing.length>3?` e mais ${missing.length-3}`:''} — 
+          sem ID não entram no ranking nem são vinculados ao importar TDFs.
+          <button class="btn btn-xs" style="margin-left:8px" onclick="nav('players')">Ver jogadores</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function loadOffline() {
   G.players  = DB.load(SK.PL, []);
   G.tours    = DB.load(SK.TN, []);
@@ -4115,6 +4147,7 @@ async function init() {
     DB.save(SK.TN, G.tours);
     DB.save('ptcg_venues_v3', G.venues);
 
+    G._lastSync = Date.now();
     setSyncStatus('ok');
 
     // Inicia Realtime após load bem-sucedido
