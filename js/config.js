@@ -71,7 +71,7 @@ function migrateIDs() {
 
 // ─── Constants ──────────────────────────────────────────────
 // Constantes e configurações globais
-const VER = '1.0.1';
+const VER = '1.1.0';
 const SK  = { PL:'ptcg_pl_v3', TN:'ptcg_tn_v3', ST:'ptcg_st_v3' };
 const DIVS = ['Juniors','Seniors','Masters'];
 const DC   = { Juniors:'dJ', Seniors:'dS', Masters:'dM' };

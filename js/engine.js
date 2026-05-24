@@ -814,18 +814,36 @@ function parseTDF(xmlStr) {
     });
   }
 
-  // Vincula ao cadastro global SOMENTE por playerId exato — nome não é confiável
+  // Vincula ao cadastro global:
+  // 1ª prioridade: playerId exato
+  // 2ª prioridade: nome normalizado, MAS só se o cadastro NÃO tem playerId
+  //   (evita falso match quando há dois jogadores com nome parecido e playerIds diferentes)
   const claimedGids = new Set();
   for (const tp of uidMap.values()) {
     if (!tp.playerId) continue;
-    const gp = G.players.find(p =>
+    const tpPid = String(tp.playerId).trim();
+
+    // Tentativa 1: match exato por playerId
+    let gp = G.players.find(p =>
       !claimedGids.has(p.id) &&
       p.playerId &&
-      p.playerId === tp.playerId
+      String(p.playerId).trim() === tpPid
     );
+
+    // Tentativa 2: match por nome se o cadastro não tem playerId ainda
+    if (!gp) {
+      gp = G.players.find(p =>
+        !claimedGids.has(p.id) &&
+        !p.playerId &&
+        norm(p.name) === norm(tp.name)
+      );
+    }
+
     if (gp) {
       claimedGids.add(gp.id);
-      tp.gid      = gp.playerId || gp.id;  // use playerId as universal key
+      // Preenche playerId no cadastro se estava vazio
+      if (!gp.playerId && tp.playerId) gp.playerId = tp.playerId;
+      tp.gid      = gp.playerId || gp.id;
       tp.name     = gp.name || tp.name;
       tp.division = gp.division;
     }
