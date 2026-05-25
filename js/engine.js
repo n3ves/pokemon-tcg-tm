@@ -170,6 +170,16 @@ function generateSwiss(tournament) {
   const { players, rounds, settings } = tournament;
   const log = [];
   const roundNum = rounds.length + 1;
+  // Recalcula hadBye dinamicamente a partir do histórico de rodadas
+  // Não confia no campo t.players[].hadBye (pode estar desatualizado)
+  const hadByeSet = new Set();
+  for (const rnd of rounds) {
+    for (const p of rnd.pairings) {
+      if (p.isBye && p.p1) hadByeSet.add(p.p1);
+    }
+  }
+  players.forEach(p => { p.hadBye = hadByeSet.has(p.id); });
+
 
   const seedVal = settings.seed
     ? (Number(settings.seed) + roundNum * 1009) >>> 0
@@ -491,6 +501,16 @@ function generateSwiss(tournament) {
   const { players, rounds, settings } = tournament;
   const log = [];
   const roundNum = rounds.length + 1;
+  // Recalcula hadBye dinamicamente a partir do histórico de rodadas
+  // Não confia no campo t.players[].hadBye (pode estar desatualizado)
+  const hadByeSet = new Set();
+  for (const rnd of rounds) {
+    for (const p of rnd.pairings) {
+      if (p.isBye && p.p1) hadByeSet.add(p.p1);
+    }
+  }
+  players.forEach(p => { p.hadBye = hadByeSet.has(p.id); });
+
 
   const seedVal = settings.seed
     ? (Number(settings.seed) + roundNum * 1009) >>> 0
