@@ -49,6 +49,9 @@ function buildOppMap(rounds) {
   const m = new Map();
   for (const rnd of rounds)
     for (const p of rnd.pairings) {
+      // Só conta pareamentos com resultado — ignora rodadas não finalizadas
+      // (evita que pares de rodadas regeradas contaminem o histórico)
+      if (p.result === null || p.result === undefined) continue;
       if (p.p2 === 'BYE') continue;
       if (!m.has(p.p1)) m.set(p.p1, new Set());
       if (!m.has(p.p2)) m.set(p.p2, new Set());
