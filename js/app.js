@@ -904,6 +904,44 @@ function getGlobalArchStats() {
   }).sort((a,b) => b.count - a.count);
 }
 
+
+function getArchTourResults(archName) {
+  // For each finished tournament, get the top 3 players who used this deck
+  const results = [];
+  G.tours.forEach(t => {
+    const users = t.players.filter(tp => tp.deckArchetype === archName);
+    if (!users.length) return;
+
+    // Calculate standings for this tournament
+    const stand = getStandings(t.players, t.rounds);
+    const archEntries = stand
+      .map((p, i) => {
+        const tp = users.find(u => u.id === p.id);
+        if (!tp) return null;
+        return { pos: i+1, name: resolveName(tp), mp: p.mp, w: p.w, l: p.l, t: p.t };
+      })
+      .filter(Boolean)
+      .slice(0, 3);
+
+    if (archEntries.length) {
+      results.push({ tourId: t.id, tourName: t.name, date: t.date, players: t.players.length, entries: archEntries, status: t.status });
+    }
+  });
+  return results.sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
+}
+
+function toggleArchResults(archName) {
+  const key = 'arch-results-' + btoa(encodeURIComponent(archName)).slice(0,12);
+  const el  = document.getElementById(key);
+  const btn = document.querySelector(`[data-arch-toggle="${key}"]`);
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (btn) btn.innerHTML = open
+    ? '<i class="ti ti-chevron-down"></i>'
+    : '<i class="ti ti-chevron-up"></i>';
+}
+
 function renderGlobalDecklists() {
   const archs   = getGlobalArchStats();
   const allUsed = getAllArchetypes(); // for datalist
@@ -941,13 +979,16 @@ ${filtered.length === 0 ? `
   <div class="card p0 mb16">
     <table>
       <thead><tr>
-        <th>#</th><th>Deck</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th>
+        <th>#</th><th>Deck</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th><th></th>
       </tr></thead>
       <tbody id="decks-table-body">
       ${filtered.map((a,i) => {
         const color = archColors[archs.indexOf(a) % archColors.length];
         const maxCount = filtered[0]?.count || 1;
-        return `<tr>
+        const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
+        const tourResults = getArchTourResults(a.name);
+        const finishedResults = tourResults.filter(r => r.status === 'finished');
+        return `<tr style="cursor:pointer" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
           <td class="muted mono" style="font-size:11px">${i+1}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px">
@@ -969,7 +1010,40 @@ ${filtered.length === 0 ? `
           <td>
             <span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span>
           </td>
-        </tr>`;
+          <td>
+            ${finishedResults.length > 0
+              ? `<button class="ib" data-arch-toggle="${key}" onclick="event.stopPropagation();toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
+                   <i class="ti ti-chevron-down"></i>
+                 </button>`
+              : '<span class="muted" style="font-size:11px">—</span>'}
+          </td>
+        </tr>
+        ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
+          <td colspan="8" style="padding:0;background:var(--s1)">
+            <div style="padding:8px 16px 12px">
+              ${finishedResults.map(r => `
+              <div style="margin-bottom:10px">
+                <div class="fx gap8 mb6" style="align-items:center">
+                  <span style="width:8px;height:8px;background:${color};border-radius:2px;flex-shrink:0"></span>
+                  <strong style="font-size:12px">${esc(r.tourName)}</strong>
+                  ${r.date ? `<span class="muted" style="font-size:11px">${r.date}</span>` : ''}
+                  <span class="muted" style="font-size:11px">${r.players} jogadores</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px">
+                  ${r.entries.map(e => `
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+                    <span style="min-width:24px;font-weight:${e.pos<=3?700:400};color:${e.pos===1?'var(--st)':e.pos===2?'#aaa':e.pos===3?'#b87333':'var(--t2)'}">
+                      ${e.pos===1?'🥇':e.pos===2?'🥈':e.pos===3?'🥉':'#'+e.pos}
+                    </span>
+                    <span style="flex:1">${esc(e.name)}</span>
+                    <span class="mono muted">${e.w}/${e.l}/${e.t}</span>
+                    <span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span>
+                  </div>`).join('')}
+                </div>
+              </div>`).join('')}
+            </div>
+          </td>
+        </tr>` : ''}`;
       }).join('')}
       </tbody>
     </table>
