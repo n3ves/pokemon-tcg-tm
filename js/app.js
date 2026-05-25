@@ -1872,6 +1872,7 @@ function renderModal() {
   if (m.type === 'deck')         { body = renderDeckModal(); }
   if (m.type === 'timer-config')   { body = renderTimerConfigModal(); maxW = '420px'; }
   if (m.type === 'link-players')   { body = renderLinkPlayersModal(); maxW = '560px'; }
+  if (m.type === 'edit-pairing')    { body = renderEditPairingModal(); maxW = '480px'; }
 
   if (m.type === 'judge') {
     const t = ct(), rnd = t?.rounds[t.currentRound-1];
@@ -3424,6 +3425,7 @@ function pairingRow(p, t) {
       <button class="rb rtie" onclick="setRes('${p.id}','${R.TIE}')">Emp</button>
       <button class="rb rp2" onclick="setRes('${p.id}','${R.P2}')">P2</button>
       <button class="rb rdl"  onclick="setRes('${p.id}','${R.DL}')" title="Double Loss">DL</button>
+      <button class="ib" onclick="openEditPairing('${p.id}')" title="Editar adversário"><i class="ti ti-pencil"></i></button>
     </div>`}
   </div>
 </div>`;
@@ -4090,6 +4092,91 @@ function _renderMissingPlayerIdBanner() {
       </div>
     </div>
   </div>`;
+}
+
+
+/* ════════════════════════════════════════════════════
+   EDITAR PAREAMENTO
+════════════════════════════════════════════════════ */
+function openEditPairing(pairingId) {
+  if (!requireAuth()) return;
+  G.modal = { type: 'edit-pairing', pairingId };
+  render();
+}
+
+function renderEditPairingModal() {
+  const t = ct(); if (!t) return '';
+  const pId = G.modal.pairingId;
+  const rnd = t.rounds[t.currentRound - 1]; if (!rnd) return '';
+  const p   = rnd.pairings.find(x => x.id === pId); if (!p) return '';
+
+  const p1name = esc(pname(p.p1, t));
+  const p2name = p.p2 === 'BYE' ? 'BYE' : esc(pname(p.p2, t));
+
+  // Players available to swap in — all active, not dropped, from same division
+  const div = pdiv(p.p1, t);
+  const used = new Set(rnd.pairings.flatMap(x => [x.p1, x.p2]).filter(x => x !== 'BYE'));
+  const available = t.players.filter(pl =>
+    !pl.dropped && !pl.dq &&
+    pl.id !== p.p1 && pl.id !== p.p2 &&
+    pdiv(pl.id, t) === div
+  );
+
+  return `
+<div class="mtitle"><i class="ti ti-pencil"></i> Editar pareamento — Mesa ${p.table||'—'}</div>
+<div class="card mb12" style="background:var(--s1);border:none">
+  <div class="fx gap8 mb4" style="align-items:center">
+    <span class="badge bs">P1</span>
+    <strong>${p1name}</strong>
+  </div>
+  <div class="fx gap8" style="align-items:center">
+    <span class="badge bd">P2</span>
+    <strong id="ep-p2-name">${p2name}</strong>
+  </div>
+</div>
+<div class="f mb4">
+  <label>Trocar P1 por</label>
+  <select id="ep-new-p1">
+    <option value="">— manter ${p1name} —</option>
+    ${available.map(pl => `<option value="${pl.id}">${esc(resolveName(pl))} ${pl.division[0]}</option>`).join('')}
+  </select>
+</div>
+<div class="f mb16">
+  <label>Trocar P2 por</label>
+  <select id="ep-new-p2">
+    <option value="">— manter ${p.p2==='BYE'?'BYE':p2name} —</option>
+    <option value="BYE">BYE</option>
+    ${available.map(pl => `<option value="${pl.id}">${esc(resolveName(pl))} ${pl.division[0]}</option>`).join('')}
+  </select>
+</div>
+<div class="muted small mb12">
+  <i class="ti ti-info-circle"></i>
+  Trocas afetam apenas esta mesa. O resultado precisa ser lançado após editar.
+</div>
+<div class="fx gap6" style="justify-content:flex-end">
+  <button class="btn" onclick="closeM()">Cancelar</button>
+  <button class="btn btn-p" onclick="saveEditPairing('${pId}')"><i class="ti ti-check"></i> Salvar</button>
+</div>`;
+}
+
+function saveEditPairing(pairingId) {
+  mtour(t => {
+    const rnd = t.rounds[t.currentRound - 1]; if (!rnd) return;
+    const p   = rnd.pairings.find(x => x.id === pairingId); if (!p) return;
+
+    const newP1 = document.getElementById('ep-new-p1')?.value;
+    const newP2 = document.getElementById('ep-new-p2')?.value;
+
+    if (newP1) p.p1 = newP1;
+    if (newP2) p.p2 = newP2 === 'BYE' ? 'BYE' : newP2;
+    p.isBye  = p.p2 === 'BYE';
+    p.result = null; // reset result when pairing changes
+    p.judgeNote = null;
+
+    tlog(t, `Pareamento editado: mesa ${p.table||'—'} → ${pname(p.p1,t)} vs ${p.isBye?'BYE':pname(p.p2,t)}`);
+  });
+  closeM();
+  notify('Pareamento atualizado', 'ok');
 }
 
 function loadOffline() {
