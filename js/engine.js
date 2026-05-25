@@ -320,33 +320,53 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
     divLog.push(`Grupo ${sc}pts [${scoreMap.get(sc).map(p=>p.name).join(', ')}]`);
   }
 
-  // ── PAIR GROUPS WITH FLOATERS ───────────────────────────
+  // ── PAIR GROUPS WITH GLOBAL BACKTRACKING ────────────────
+  // Se os grupos inferiores ficarem sem par válido,
+  // faz backtracking global com todos os jogadores.
   const allPairs = [];
   let floaters   = [];
 
   for (const sc of scores) {
     const group = [...floaters, ...scoreMap.get(sc)];
     floaters = [];
-
-    if (floaters.length) divLog.push(`  Float→ grupo ${sc}pts: ${floaters.map(p=>p.name).join(',')}`);
-
     const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog);
     allPairs.push(...pairs);
     floaters = leftover;
   }
 
-  // Floaters residuais — tenta parear sem rematch; se impossível, BYE extra
+  // Tenta parear floaters residuais entre si
   if (floaters.length >= 2) {
     const { pairs: fp, leftover: fl2 } = pairWithBacktrack(floaters, oppMap, rng, divLog);
     allPairs.push(...fp);
-    // Qualquer floater que sobrou sem par válido recebe BYE extra
-    fl2.forEach(p => {
-      divLog.push(`⚠ Float sem par válido: ${p.name} → BYE extra`);
-      allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
-    });
+    floaters = fl2;
+  }
+
+  // Ainda sobrou? Backtracking global — desconsidera grupos e repara tudo
+  if (floaters.length >= 2) {
+    divLog.push(`⚠ Backtracking global: ${floaters.map(p=>p.name).join(',')} sem par — recalculando...`);
+    allPairs.length = 0;
+    const activePlayers = pool.filter(p => !byePlayer || p.id !== byePlayer.id);
+    const globalResult  = backtrack(activePlayers, oppMap, []);
+    if (globalResult && globalResult.leftover.length === 0) {
+      allPairs.push(...globalResult.pairs);
+      divLog.push('  Solução global: ' + globalResult.pairs.map(p => {
+        const n1 = activePlayers.find(x=>x.id===p.p1)?.name||'?';
+        const n2 = activePlayers.find(x=>x.id===p.p2)?.name||'?';
+        return n1+' × '+n2;
+      }).join(' | '));
+      floaters = [];
+    } else {
+      (globalResult?.leftover || floaters).forEach(p => {
+        divLog.push(`⚠ Sem par válido: ${p.name} → BYE extra`);
+        allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+      });
+      if (globalResult) allPairs.push(...globalResult.pairs);
+      floaters = [];
+    }
   } else if (floaters.length === 1) {
     divLog.push(`⚠ Float sem par: ${floaters[0].name} → BYE extra`);
     allPairs.push({ id: uid(), p1: floaters[0].id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+    floaters = [];
   }
 
   // ── P1/P2 BALANCE ───────────────────────────────────────
@@ -607,33 +627,53 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
     divLog.push(`Grupo ${sc}pts [${scoreMap.get(sc).map(p=>p.name).join(', ')}]`);
   }
 
-  // ── PAIR GROUPS WITH FLOATERS ───────────────────────────
+  // ── PAIR GROUPS WITH GLOBAL BACKTRACKING ────────────────
+  // Se os grupos inferiores ficarem sem par válido,
+  // faz backtracking global com todos os jogadores.
   const allPairs = [];
   let floaters   = [];
 
   for (const sc of scores) {
     const group = [...floaters, ...scoreMap.get(sc)];
     floaters = [];
-
-    if (floaters.length) divLog.push(`  Float→ grupo ${sc}pts: ${floaters.map(p=>p.name).join(',')}`);
-
     const { pairs, leftover } = pairWithBacktrack(group, oppMap, rng, divLog);
     allPairs.push(...pairs);
     floaters = leftover;
   }
 
-  // Floaters residuais — tenta parear sem rematch; se impossível, BYE extra
+  // Tenta parear floaters residuais entre si
   if (floaters.length >= 2) {
     const { pairs: fp, leftover: fl2 } = pairWithBacktrack(floaters, oppMap, rng, divLog);
     allPairs.push(...fp);
-    // Qualquer floater que sobrou sem par válido recebe BYE extra
-    fl2.forEach(p => {
-      divLog.push(`⚠ Float sem par válido: ${p.name} → BYE extra`);
-      allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
-    });
+    floaters = fl2;
+  }
+
+  // Ainda sobrou? Backtracking global — desconsidera grupos e repara tudo
+  if (floaters.length >= 2) {
+    divLog.push(`⚠ Backtracking global: ${floaters.map(p=>p.name).join(',')} sem par — recalculando...`);
+    allPairs.length = 0;
+    const activePlayers = pool.filter(p => !byePlayer || p.id !== byePlayer.id);
+    const globalResult  = backtrack(activePlayers, oppMap, []);
+    if (globalResult && globalResult.leftover.length === 0) {
+      allPairs.push(...globalResult.pairs);
+      divLog.push('  Solução global: ' + globalResult.pairs.map(p => {
+        const n1 = activePlayers.find(x=>x.id===p.p1)?.name||'?';
+        const n2 = activePlayers.find(x=>x.id===p.p2)?.name||'?';
+        return n1+' × '+n2;
+      }).join(' | '));
+      floaters = [];
+    } else {
+      (globalResult?.leftover || floaters).forEach(p => {
+        divLog.push(`⚠ Sem par válido: ${p.name} → BYE extra`);
+        allPairs.push({ id: uid(), p1: p.id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+      });
+      if (globalResult) allPairs.push(...globalResult.pairs);
+      floaters = [];
+    }
   } else if (floaters.length === 1) {
     divLog.push(`⚠ Float sem par: ${floaters[0].name} → BYE extra`);
     allPairs.push({ id: uid(), p1: floaters[0].id, p2: 'BYE', result: R.BYE, isBye: true, table: null });
+    floaters = [];
   }
 
   // ── P1/P2 BALANCE ───────────────────────────────────────
