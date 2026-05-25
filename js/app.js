@@ -1020,24 +1020,40 @@ ${filtered.length === 0 ? `
         </tr>
         ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
           <td colspan="8" style="padding:0">
-            <div style="background:var(--s1);border-top:1px solid var(--bd);border-bottom:2px solid var(--bd);padding:12px 20px">
-              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
-                ${finishedResults.map(r => `
-                <div style="background:var(--s2);border-radius:8px;padding:10px 12px">
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-                    <span style="width:8px;height:8px;background:${color};border-radius:2px;flex-shrink:0"></span>
-                    <span style="font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.tourName)}</span>
-                  </div>
-                  <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${r.date||''} · ${r.players} jogadores</div>
-                  ${r.entries.map(e => `
-                  <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:0.5px solid var(--bd)">
-                    <span style="font-size:13px;width:20px;flex-shrink:0">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</span>
-                    <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.name)}</span>
-                    <span style="font-family:var(--mono);font-size:11px;color:var(--t2)">${e.w}/${e.l}/${e.t}</span>
-                    <span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px;flex-shrink:0">${e.mp}pts</span>
-                  </div>`).join('')}
-                </div>`).join('')}
-              </div>
+            <div style="background:var(--s1);border-bottom:2px solid var(--bd)">
+              <table style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--bd)">
+                    <th style="padding:6px 20px;font-size:11px;color:var(--t2);font-weight:500;text-align:left;width:28px"></th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Torneio</th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Data</th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Jogadores</th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Pos.</th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Jogador</th>
+                    <th style="padding:6px 12px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">W/L/E</th>
+                    <th style="padding:6px 20px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${finishedResults.map(r => r.entries.map((e, ei) => `
+                  <tr style="border-bottom:0.5px solid var(--bd)">
+                    <td style="padding:7px 20px">
+                      ${ei === 0 ? `<span style="width:8px;height:8px;background:${color};border-radius:2px;display:inline-block"></span>` : ''}
+                    </td>
+                    <td style="padding:7px 12px;font-size:12px;font-weight:${ei===0?600:400};color:${ei===0?'var(--t1)':'var(--t2)'}">
+                      ${ei === 0 ? esc(r.tourName) : ''}
+                    </td>
+                    <td style="padding:7px 12px;font-size:11px;color:var(--t2)">${ei === 0 ? (r.date||'—') : ''}</td>
+                    <td style="padding:7px 12px;font-size:11px;color:var(--t2);text-align:center">${ei === 0 ? r.players : ''}</td>
+                    <td style="padding:7px 12px;font-size:14px">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</td>
+                    <td style="padding:7px 12px;font-size:12px">${esc(e.name)}</td>
+                    <td style="padding:7px 12px;font-size:11px;font-family:var(--mono);text-align:center;color:var(--t2)">${e.w}/${e.l}/${e.t}</td>
+                    <td style="padding:7px 20px;text-align:center">
+                      <span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span>
+                    </td>
+                  </tr>`).join('')).join('')}
+                </tbody>
+              </table>
             </div>
           </td>
         </tr>` : ''}`;
