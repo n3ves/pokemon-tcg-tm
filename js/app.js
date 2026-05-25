@@ -945,9 +945,8 @@ function toggleArchResults(archName) {
 
 function renderGlobalDecklists() {
   const archs   = getGlobalArchStats();
-  const allUsed = getAllArchetypes(); // for datalist
   const q       = norm(G.search);
-  const byPts = !G._deckView || G._deckView === 'pts';
+  const byPts   = !G._deckView || G._deckView === 'pts';
   const filtered = archs
     .filter(a => !q || norm(a.name).includes(q))
     .sort((a,b) => byPts ? (b.mp - a.mp) : (b.count - a.count));
@@ -962,10 +961,10 @@ function renderGlobalDecklists() {
   </div>
   <div class="fx gap8">
     <div class="fx gap4" style="background:var(--s2);border-radius:8px;padding:3px">
-      <button class="btn btn-sm ${G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por share de uso">
+      <button class="btn btn-sm ${!byPts?'btn-p':''}" onclick="G._deckView='share';render()">
         <i class="ti ti-chart-bar"></i> Share
       </button>
-      <button class="btn btn-sm ${!G._deckView||G._deckView==='pts'?'btn-p':''}" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
+      <button class="btn btn-sm ${byPts?'btn-p':''}" onclick="G._deckView='pts';render()">
         <i class="ti ti-coins"></i> Pontos
       </button>
     </div>
@@ -982,130 +981,92 @@ function renderGlobalDecklists() {
 
 ${filtered.length === 0 ? `
 <div class="card mb16">
-  <div class="empty">
-    <i class="ti ti-cards"></i>
-    <p>${total===0?'Nenhum deck registrado ainda. Registre decks dentro de um torneio na aba Decklists.':'Nenhum resultado para a busca.'}</p>
+  <div class="empty"><i class="ti ti-cards"></i>
+    <p>${total===0?'Nenhum deck registrado ainda.':'Nenhum resultado para a busca.'}</p>
   </div>
 </div>` : `
 
 <div style="display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start">
 
-  <div class="card p0 mb16">
-    <table>
-      <thead><tr>
-        <th>#</th><th>Deck</th>
-        <th style="cursor:pointer" onclick="G._deckView='share';render()" title="Ordenar por uso">
-          Usos ${!byPts?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
-        </th>
-        <th>% Share</th>
-        <th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th>
-        <th style="cursor:pointer" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
-          Pontos ${byPts?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
-        </th>
-        <th></th>
-      </tr></thead>
-      <tbody id="decks-table-body">
-      ${filtered.map((a,i) => {
-        const color = archColors[archs.indexOf(a) % archColors.length];
-        const maxCount = filtered[0]?.count || 1;
-        const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
-        const tourResults = getArchTourResults(a.name);
-        const finishedResults = tourResults; // getArchTourResults já filtra só finalizados
-        const shareP = total > 0 ? Math.round(a.count/total*100) : 0;
-        
-        return `<tr style="cursor:pointer;${byPts&&i<3?'background:var(--s1)':''}" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
-          <td class="muted mono" style="font-size:11px">${i+1}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:8px">
+  <div>
+    <div class="card p0 mb8">
+      <table style="width:100%">
+        <thead><tr>
+          <th>#</th><th>Deck</th>
+          <th style="cursor:pointer" onclick="G._deckView='share';render()">Usos ${!byPts?'▾':''}</th>
+          <th>% Share</th>
+          <th>Torneios</th><th>Únicos</th><th>W/L/E</th>
+          <th style="cursor:pointer" onclick="G._deckView='pts';render()">Pontos ${byPts?'▾':''}</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+        ${filtered.map((a,i) => {
+          const color = archColors[archs.indexOf(a) % archColors.length];
+          const maxCount = filtered[0]?.count || 1;
+          const maxMp    = filtered[0]?.mp || 1;
+          const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
+          const hasPodium = getArchTourResults(a.name).length > 0;
+          const shareP = total > 0 ? Math.round(a.count/total*100) : 0;
+          return `<tr style="cursor:pointer" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
+            <td class="muted mono" style="font-size:11px">${i+1}</td>
+            <td><div class="fx gap8">
               <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
               <span style="font-weight:500">${esc(a.name)}</span>
-            </div>
-          </td>
-          <td>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:60px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+            </div></td>
+            <td><div class="fx gap6">
+              <div style="width:50px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
                 <div style="width:${Math.round(a.count/maxCount*100)}%;height:100%;background:${color}"></div>
               </div>
               <span class="mono">${a.count}</span>
-            </div>
-          </td>
-          <td>
-            <div style="display:flex;align-items:center;gap:6px">
+            </div></td>
+            <td><span class="mono muted" style="font-size:11px">${shareP}%</span></td>
+            <td class="mono">${a.tournaments}</td>
+            <td class="mono">${a.players}</td>
+            <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
+            <td><div class="fx gap6">
               <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
-                <div style="width:${shareP}%;height:100%;background:${color}88"></div>
-              </div>
-              <span class="mono muted" style="font-size:11px">${shareP}%</span>
-            </div>
-          </td>
-          <td class="mono">${a.tournaments}</td>
-          <td class="mono">${a.players}</td>
-          <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
-                <div style="width:${filtered.length?Math.round(a.mp/Math.max(...filtered.map(x=>x.mp),1)*100):0}%;height:100%;background:var(--it)"></div>
+                <div style="width:${Math.round(a.mp/maxMp*100)}%;height:100%;background:var(--it)"></div>
               </div>
               <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${a.mp}</span>
-            </div>
-          </td>
-          <td>
-            ${finishedResults.length > 0
-              ? `<button class="ib" data-arch-toggle="${key}" onclick="event.stopPropagation();toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
-                   <i class="ti ti-chevron-down"></i>
-                 </button>`
+            </div></td>
+            <td>${hasPodium
+              ? `<button class="ib" onclick="event.stopPropagation();toggleArchResults('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-chevron-down" id="${key}-icon"></i></button>`
               : '<span class="muted" style="font-size:11px">—</span>'}
-          </td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Expanded panels rendered outside the table -->
-  <div id="arch-panels-container">
-    ${filtered.map((a,i) => {
-      const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
-      const color = archColors[archs.indexOf(a) % archColors.length];
-      const finishedResults = getArchTourResults(a.name);
-      if (!finishedResults.length) return '';
-      return `<div id="${key}" style="display:none;border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:8px">
-        <div style="background:var(--s2);padding:8px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bd)">
-          <span style="width:10px;height:10px;background:${color};border-radius:2px;flex-shrink:0"></span>
-          <strong style="font-size:13px">${esc(a.name)}</strong>
-          <span class="muted small">— Resultados no pódio</span>
-          <button class="ib ml" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-x"></i></button>
-        </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;min-width:500px">
-            <thead>
-              <tr style="border-bottom:1px solid var(--bd)">
-                <th style="padding:6px 14px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Torneio</th>
-                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Data</th>
-                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Jog.</th>
-                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Pos.</th>
-                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Jogador</th>
-                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">W/L/E</th>
-                <th style="padding:6px 14px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${finishedResults.map(r => r.entries.map((e, ei) => `
-              <tr style="border-bottom:0.5px solid var(--bd)">
-                <td style="padding:7px 14px;font-size:12px;font-weight:${ei===0?600:400}">${ei===0?esc(r.tourName):''}</td>
-                <td style="padding:7px 10px;font-size:11px;color:var(--t2)">${ei===0?(r.date||'—'):''}</td>
-                <td style="padding:7px 10px;font-size:11px;color:var(--t2);text-align:center">${ei===0?r.players:''}</td>
-                <td style="padding:7px 10px;font-size:15px;text-align:center">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</td>
-                <td style="padding:7px 10px;font-size:12px">${esc(e.name)}</td>
-                <td style="padding:7px 10px;font-size:11px;font-family:var(--mono);text-align:center;color:var(--t2)">${e.w}/${e.l}/${e.t}</td>
-                <td style="padding:7px 14px;text-align:center"><span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span></td>
-              </tr>`).join('')).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>
-
+            </td>
+          </tr>
+          ${hasPodium ? `<tr id="${key}" style="display:none;background:var(--s1)">
+            <td colspan="9" style="padding:0">
+              ${(() => {
+                const results = getArchTourResults(a.name);
+                return '<table style="width:100%;border-collapse:collapse">'
+                  + '<thead><tr style="border-bottom:1px solid var(--bd)">'
+                  + '<th style="padding:5px 12px 5px 28px;font-size:10px;color:var(--t2);font-weight:500;text-align:left">Torneio</th>'
+                  + '<th style="padding:5px 8px;font-size:10px;color:var(--t2);font-weight:500">Data</th>'
+                  + '<th style="padding:5px 8px;font-size:10px;color:var(--t2);font-weight:500;text-align:center">Jog.</th>'
+                  + '<th style="padding:5px 8px;font-size:10px;color:var(--t2);font-weight:500;text-align:center">Pos.</th>'
+                  + '<th style="padding:5px 8px;font-size:10px;color:var(--t2);font-weight:500">Jogador</th>'
+                  + '<th style="padding:5px 8px;font-size:10px;color:var(--t2);font-weight:500;text-align:center">W/L/E</th>'
+                  + '<th style="padding:5px 12px;font-size:10px;color:var(--t2);font-weight:500;text-align:center">Pts</th>'
+                  + '</tr></thead><tbody>'
+                  + results.map(r => r.entries.map((e,ei) =>
+                    '<tr style="border-bottom:0.5px solid var(--bd)">'
+                    + '<td style="padding:6px 12px 6px 28px;font-size:12px;font-weight:' + (ei===0?600:400) + '">' + (ei===0?esc(r.tourName):'') + '</td>'
+                    + '<td style="padding:6px 8px;font-size:11px;color:var(--t2)">' + (ei===0?(r.date||'—'):'') + '</td>'
+                    + '<td style="padding:6px 8px;font-size:11px;color:var(--t2);text-align:center">' + (ei===0?r.players:'') + '</td>'
+                    + '<td style="padding:6px 8px;font-size:14px;text-align:center">' + (e.pos===1?'🥇':e.pos===2?'🥈':'🥉') + '</td>'
+                    + '<td style="padding:6px 8px;font-size:12px">' + esc(e.name) + '</td>'
+                    + '<td style="padding:6px 8px;font-size:11px;font-family:var(--mono);color:var(--t2);text-align:center">' + e.w+'/'+e.l+'/'+e.t + '</td>'
+                    + '<td style="padding:6px 12px;text-align:center"><span class="badge ' + (e.mp>=6?'bs':e.mp>=3?'bw':'bd') + '" style="font-size:10px">' + e.mp + 'pts</span></td>'
+                    + '</tr>'
+                  ).join('')).join('')
+                  + '</tbody></table>';
+              })()}
+            </td>
+          </tr>` : ''}`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div style="display:flex;flex-direction:column;gap:12px">
@@ -1124,11 +1085,10 @@ ${filtered.length === 0 ? `
         </div>`;
       }).join('')}
     </div>
-
   </div>
+
 </div>`}`;
 }
-
 function renderDeckPlayerList(t, filter) {
   const q = norm(filter || '');
   const players = q
