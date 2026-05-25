@@ -906,25 +906,25 @@ function getGlobalArchStats() {
 
 
 function getArchTourResults(archName) {
-  // For each finished tournament, get the top 3 players who used this deck
   const results = [];
   G.tours.forEach(t => {
+    if (t.status !== 'finished') return;
     const users = t.players.filter(tp => tp.deckArchetype === archName);
     if (!users.length) return;
 
-    // Calculate standings for this tournament
     const stand = getStandings(t.players, t.rounds);
-    const archEntries = stand
+    // Só inclui jogadores que ficaram entre 1º e 3º lugar com este deck
+    const podium = stand
       .map((p, i) => {
+        if (i >= 3) return null; // só top 3
         const tp = users.find(u => u.id === p.id);
         if (!tp) return null;
         return { pos: i+1, name: resolveName(tp), mp: p.mp, w: p.w, l: p.l, t: p.t };
       })
-      .filter(Boolean)
-      .slice(0, 3);
+      .filter(Boolean);
 
-    if (archEntries.length) {
-      results.push({ tourId: t.id, tourName: t.name, date: t.date, players: t.players.length, entries: archEntries, status: t.status });
+    if (podium.length) {
+      results.push({ tourId: t.id, tourName: t.name, date: t.date, players: t.players.length, entries: podium });
     }
   });
   return results.sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
@@ -1019,27 +1019,22 @@ ${filtered.length === 0 ? `
           </td>
         </tr>
         ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
-          <td colspan="8" style="padding:0;background:var(--s1)">
-            <div style="padding:8px 16px 12px">
+          <td colspan="8" style="padding:0">
+            <div style="background:var(--s1);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;flex-wrap:wrap;gap:16px">
               ${finishedResults.map(r => `
-              <div style="margin-bottom:10px">
-                <div class="fx gap8 mb6" style="align-items:center">
+              <div style="min-width:180px;flex:1;max-width:260px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
                   <span style="width:8px;height:8px;background:${color};border-radius:2px;flex-shrink:0"></span>
-                  <strong style="font-size:12px">${esc(r.tourName)}</strong>
-                  ${r.date ? `<span class="muted" style="font-size:11px">${r.date}</span>` : ''}
-                  <span class="muted" style="font-size:11px">${r.players} jogadores</span>
+                  <span style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.tourName)}</span>
+                  <span class="muted" style="font-size:10px;white-space:nowrap">${r.date||''} · ${r.players}j</span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px">
-                  ${r.entries.map(e => `
-                  <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-                    <span style="min-width:24px;font-weight:${e.pos<=3?700:400};color:${e.pos===1?'var(--st)':e.pos===2?'#aaa':e.pos===3?'#b87333':'var(--t2)'}">
-                      ${e.pos===1?'🥇':e.pos===2?'🥈':e.pos===3?'🥉':'#'+e.pos}
-                    </span>
-                    <span style="flex:1">${esc(e.name)}</span>
-                    <span class="mono muted">${e.w}/${e.l}/${e.t}</span>
-                    <span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span>
-                  </div>`).join('')}
-                </div>
+                ${r.entries.map(e => `
+                <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--bd);font-size:12px">
+                  <span style="font-size:14px;width:22px;flex-shrink:0">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</span>
+                  <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.name)}</span>
+                  <span class="mono muted" style="font-size:11px">${e.w}/${e.l}/${e.t}</span>
+                  <span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span>
+                </div>`).join('')}
               </div>`).join('')}
             </div>
           </td>
