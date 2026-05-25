@@ -1055,37 +1055,57 @@ ${filtered.length === 0 ? `
                  </button>`
               : '<span class="muted" style="font-size:11px">—</span>'}
           </td>
-        </tr>
-        ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
-          <td colspan="9" style="padding:0;border:none">
-            <div style="min-width:100%;background:var(--s1);border-bottom:2px solid var(--bd)">
-              <div style="display:grid;grid-template-columns:20px 1fr 90px 70px 36px 1fr 70px 64px;align-items:center;padding:5px 16px;border-bottom:1px solid var(--bd)">
-                <span></span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Torneio</span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Data</span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:center">Jog.</span>
-                <span></span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Jogador</span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:center">W/L/E</span>
-                <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:center">Pts</span>
-              </div>
-              ${finishedResults.map(r => r.entries.map((e, ei) => `
-              <div style="display:grid;grid-template-columns:20px 1fr 90px 70px 36px 1fr 70px 64px;align-items:center;padding:6px 16px;border-bottom:0.5px solid var(--bd)">
-                <span>${ei===0?`<span style="width:8px;height:8px;background:${color};border-radius:2px;display:inline-block;margin-top:2px"></span>`:''}</span>
-                <span style="font-size:12px;font-weight:${ei===0?600:400};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${ei===0?esc(r.tourName):''}</span>
-                <span style="font-size:11px;color:var(--t2)">${ei===0?(r.date||'—'):''}</span>
-                <span style="font-size:11px;color:var(--t2);text-align:center">${ei===0?r.players:''}</span>
-                <span style="font-size:15px;text-align:center">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</span>
-                <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${esc(e.name)}</span>
-                <span style="font-size:11px;font-family:var(--mono);color:var(--t2);text-align:center">${e.w}/${e.l}/${e.t}</span>
-                <span style="text-align:center"><span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span></span>
-              </div>`).join('')).join('')}
-            </div>
-          </td>
-        </tr>` : ''}`;
+        </tr>`;
       }).join('')}
       </tbody>
     </table>
+  </div>
+
+  <!-- Expanded panels rendered outside the table -->
+  <div id="arch-panels-container">
+    ${filtered.map((a,i) => {
+      const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
+      const color = archColors[archs.indexOf(a) % archColors.length];
+      const finishedResults = getArchTourResults(a.name);
+      if (!finishedResults.length) return '';
+      return `<div id="${key}" style="display:none;border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:8px">
+        <div style="background:var(--s2);padding:8px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bd)">
+          <span style="width:10px;height:10px;background:${color};border-radius:2px;flex-shrink:0"></span>
+          <strong style="font-size:13px">${esc(a.name)}</strong>
+          <span class="muted small">— Resultados no pódio</span>
+          <button class="ib ml" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-x"></i></button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:500px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <th style="padding:6px 14px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Torneio</th>
+                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Data</th>
+                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Jog.</th>
+                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Pos.</th>
+                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:left">Jogador</th>
+                <th style="padding:6px 10px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">W/L/E</th>
+                <th style="padding:6px 14px;font-size:11px;color:var(--t2);font-weight:500;text-align:center">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${finishedResults.map(r => r.entries.map((e, ei) => `
+              <tr style="border-bottom:0.5px solid var(--bd)">
+                <td style="padding:7px 14px;font-size:12px;font-weight:${ei===0?600:400}">${ei===0?esc(r.tourName):''}</td>
+                <td style="padding:7px 10px;font-size:11px;color:var(--t2)">${ei===0?(r.date||'—'):''}</td>
+                <td style="padding:7px 10px;font-size:11px;color:var(--t2);text-align:center">${ei===0?r.players:''}</td>
+                <td style="padding:7px 10px;font-size:15px;text-align:center">${e.pos===1?'🥇':e.pos===2?'🥈':'🥉'}</td>
+                <td style="padding:7px 10px;font-size:12px">${esc(e.name)}</td>
+                <td style="padding:7px 10px;font-size:11px;font-family:var(--mono);text-align:center;color:var(--t2)">${e.w}/${e.l}/${e.t}</td>
+                <td style="padding:7px 14px;text-align:center"><span class="badge ${e.mp>=6?'bs':e.mp>=3?'bw':'bd'}" style="font-size:10px">${e.mp}pts</span></td>
+              </tr>`).join('')).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
   </div>
 
   <div style="display:flex;flex-direction:column;gap:12px">
