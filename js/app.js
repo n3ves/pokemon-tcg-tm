@@ -4113,13 +4113,13 @@ function renderEditPairingModal() {
   const p1name = esc(pname(p.p1, t));
   const p2name = p.p2 === 'BYE' ? 'BYE' : esc(pname(p.p2, t));
 
-  // Players available to swap in — all active, not dropped, from same division
-  const div = pdiv(p.p1, t);
+  // Respeita separateDivisions: se false, qualquer jogador pode trocar com qualquer um
+  const div = t.settings.separateDivisions ? pdiv(p.p1, t) : null;
   const used = new Set(rnd.pairings.flatMap(x => [x.p1, x.p2]).filter(x => x !== 'BYE'));
   const available = t.players.filter(pl =>
     !pl.dropped && !pl.dq &&
     pl.id !== p.p1 && pl.id !== p.p2 &&
-    pdiv(pl.id, t) === div
+    (!div || pdiv(pl.id, t) === div)
   );
 
   return `
