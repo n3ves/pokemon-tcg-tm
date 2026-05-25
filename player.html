@@ -61,10 +61,16 @@ async function load() {
   try {
     if (!playerId) { render(null, null, null); return; }
 
-    const [players, tours] = await Promise.all([
+    const [rawPlayers, tours] = await Promise.all([
       sbGet('players', '?order=name.asc'),
       sbGet('tournaments', '?order=created_at.desc'),
     ]);
+    // Map snake_case → camelCase (Supabase retorna player_id, birth_date, etc.)
+    const players = rawPlayers.map(p => ({
+      ...p,
+      playerId:  p.player_id  || p.playerId  || '',
+      birthDate: p.birth_date || p.birthDate || '',
+    }));
 
     // Suporta tanto UUID interno quanto playerId do Pokémon (ex: 5098421)
     const gp = players.find(p => p.id === playerId)
