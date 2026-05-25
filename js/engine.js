@@ -413,9 +413,8 @@ function pairWithBacktrack(group, oppMap, rng, divLog) {
   return greedyPair(group, oppMap, rng, divLog);
 }
 
-// Backtracking estrito — NUNCA gera rematch.
-// Tenta todas as permutações do grupo. Se não encontrar solução limpa,
-// retorna null e o jogador sobra como floater para o grupo seguinte.
+// Backtracking estrito — tenta TODAS as combinações e retorna a que tem MENOS leftovers.
+// Com 0 leftovers retorna imediatamente (solução ótima encontrada).
 function backtrack(pool, oppMap, pairs) {
   if (pool.length === 0) return { pairs, leftover: [] };
   if (pool.length === 1) return { pairs, leftover: pool };
@@ -424,19 +423,27 @@ function backtrack(pool, oppMap, pairs) {
   const rest      = pool.slice(1);
   const firstOpps = oppMap.get(first.id) || new Set();
 
+  let best = null;
+
   for (let i = 0; i < rest.length; i++) {
     const partner = rest[i];
-    if (firstOpps.has(partner.id)) continue; // NUNCA rematch
+    if (firstOpps.has(partner.id)) continue;
     const newPool = rest.filter((_,j) => j !== i);
     const newPair = { id: uid(), p1: first.id, p2: partner.id, result: null, isBye: false, table: null };
     const result  = backtrack(newPool, oppMap, [...pairs, newPair]);
-    if (result) return result;
+    if (!result) continue;
+    if (result.leftover.length === 0) return result; // perfeito — para imediatamente
+    if (!best || result.leftover.length < best.leftover.length) best = result;
   }
 
-  // Não encontrou par válido para first — ele flutua para baixo
-  const result = backtrack(rest, oppMap, pairs);
-  if (result) return { pairs: result.pairs, leftover: [first, ...result.leftover] };
-  return { pairs, leftover: pool };
+  // Tenta também flutuar first e ver se o resto emparelha melhor
+  const floatResult = backtrack(rest, oppMap, pairs);
+  if (floatResult) {
+    const withFloat = { pairs: floatResult.pairs, leftover: [first, ...floatResult.leftover] };
+    if (!best || withFloat.leftover.length < best.leftover.length) best = withFloat;
+  }
+
+  return best || { pairs, leftover: pool };
 }
 
 function greedyPair(group, oppMap, rng, divLog) {
@@ -720,9 +727,8 @@ function pairWithBacktrack(group, oppMap, rng, divLog) {
   return greedyPair(group, oppMap, rng, divLog);
 }
 
-// Backtracking estrito — NUNCA gera rematch.
-// Tenta todas as permutações do grupo. Se não encontrar solução limpa,
-// retorna null e o jogador sobra como floater para o grupo seguinte.
+// Backtracking estrito — tenta TODAS as combinações e retorna a que tem MENOS leftovers.
+// Com 0 leftovers retorna imediatamente (solução ótima encontrada).
 function backtrack(pool, oppMap, pairs) {
   if (pool.length === 0) return { pairs, leftover: [] };
   if (pool.length === 1) return { pairs, leftover: pool };
@@ -731,19 +737,27 @@ function backtrack(pool, oppMap, pairs) {
   const rest      = pool.slice(1);
   const firstOpps = oppMap.get(first.id) || new Set();
 
+  let best = null;
+
   for (let i = 0; i < rest.length; i++) {
     const partner = rest[i];
-    if (firstOpps.has(partner.id)) continue; // NUNCA rematch
+    if (firstOpps.has(partner.id)) continue;
     const newPool = rest.filter((_,j) => j !== i);
     const newPair = { id: uid(), p1: first.id, p2: partner.id, result: null, isBye: false, table: null };
     const result  = backtrack(newPool, oppMap, [...pairs, newPair]);
-    if (result) return result;
+    if (!result) continue;
+    if (result.leftover.length === 0) return result; // perfeito — para imediatamente
+    if (!best || result.leftover.length < best.leftover.length) best = result;
   }
 
-  // Não encontrou par válido para first — ele flutua para baixo
-  const result = backtrack(rest, oppMap, pairs);
-  if (result) return { pairs: result.pairs, leftover: [first, ...result.leftover] };
-  return { pairs, leftover: pool };
+  // Tenta também flutuar first e ver se o resto emparelha melhor
+  const floatResult = backtrack(rest, oppMap, pairs);
+  if (floatResult) {
+    const withFloat = { pairs: floatResult.pairs, leftover: [first, ...floatResult.leftover] };
+    if (!best || withFloat.leftover.length < best.leftover.length) best = withFloat;
+  }
+
+  return best || { pairs, leftover: pool };
 }
 
 function greedyPair(group, oppMap, rng, divLog) {
