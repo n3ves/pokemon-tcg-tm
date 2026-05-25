@@ -987,7 +987,7 @@ ${filtered.length === 0 ? `
         const maxCount = filtered[0]?.count || 1;
         const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
         const tourResults = getArchTourResults(a.name);
-        const finishedResults = tourResults.filter(r => r.status === 'finished');
+        const finishedResults = tourResults; // getArchTourResults já filtra só finalizados
         return `<tr style="cursor:pointer" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
           <td class="muted mono" style="font-size:11px">${i+1}</td>
           <td>
