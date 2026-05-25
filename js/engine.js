@@ -253,8 +253,14 @@ function generateSwiss(tournament) {
     p.judgeNote = p.judgeNote || null;
   });
 
+  // Validação: máximo 1 BYE por rodada (ou 1 por divisão se separadas)
+  const byePairings = allPairings.filter(p => p.isBye);
+  if (!settings.separateDivisions && byePairings.length > 1) {
+    log.push(`⚠ ERRO: ${byePairings.length} BYEs gerados em 1 rodada — apenas 1 permitido`);
+  }
+
   log.push(`\n${'─'.repeat(40)}`);
-  log.push(`Mesas: ${tableNum-1}  |  Byes: ${allPairings.filter(p=>p.isBye).length}`);
+  log.push(`Mesas: ${tableNum-1}  |  Byes: ${byePairings.length}`);
 
   return { pairings: allPairings, log, seed: seedVal };
 }
@@ -296,10 +302,11 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
       rng() - 0.5             // 4. aleatório
     );
     byePlayer = enriched[0];
+    byePlayer.hadBye = true; // marca imediatamente para não receber 2º BYE
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
     const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=${byePlayer.hadBye})${byeNote}`);
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=true)${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────
@@ -567,8 +574,14 @@ function generateSwiss(tournament) {
     p.judgeNote = p.judgeNote || null;
   });
 
+  // Validação: máximo 1 BYE por rodada (ou 1 por divisão se separadas)
+  const byePairings = allPairings.filter(p => p.isBye);
+  if (!settings.separateDivisions && byePairings.length > 1) {
+    log.push(`⚠ ERRO: ${byePairings.length} BYEs gerados em 1 rodada — apenas 1 permitido`);
+  }
+
   log.push(`\n${'─'.repeat(40)}`);
-  log.push(`Mesas: ${tableNum-1}  |  Byes: ${allPairings.filter(p=>p.isBye).length}`);
+  log.push(`Mesas: ${tableNum-1}  |  Byes: ${byePairings.length}`);
 
   return { pairings: allPairings, log, seed: seedVal };
 }
@@ -610,10 +623,11 @@ function pairGroup(players, rounds, oppMap, rng, roundNum, parentLog) {
       rng() - 0.5             // 4. aleatório
     );
     byePlayer = enriched[0];
+    byePlayer.hadBye = true; // marca imediatamente para não receber 2º BYE
     const pi = pool.findIndex(p => p.id === byePlayer.id);
     pool.splice(pi, 1);
     const byeNote = noBye.length === 0 ? ' ⚠ todos já tiveram BYE' : '';
-    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=${byePlayer.hadBye})${byeNote}`);
+    divLog.push(`BYE → ${byePlayer.name}  (${byePlayer.mp}pts, OWP=${(byePlayer._owp*100).toFixed(1)}%, hadBye=true)${byeNote}`);
   }
 
   // ── GROUP BY MATCH POINTS ───────────────────────────────
