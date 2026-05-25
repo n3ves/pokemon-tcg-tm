@@ -78,15 +78,16 @@ async function load() {
       try { return typeof r.full_state === 'string' ? JSON.parse(r.full_state) : r.full_state; } catch(e) { return null; }
     }).filter(Boolean);
 
-    // gid agora armazena playerId do Pokémon
+    // gid = playerId do Pokémon (chave universal)
+    // Busca: gid===playerId OU playerId===playerId
     const matchesPlayer = (tp) =>
       tp.gid === playerId ||
-      tp.playerId === playerId ||
-      tp.gid === gp?.id;
+      tp.playerId === playerId;
 
     if (tourId) {
       tour = allTours.find(t => t.id === tourId);
     } else {
+      // Prefere torneio ativo
       tour = allTours.find(t =>
         (t.status === 'rounds' || t.status === 'topcut') &&
         t.players.some(matchesPlayer)
@@ -133,7 +134,7 @@ function render(gp, tour, allPlayers) {
     return;
   }
 
-  const matchP = (tp) => tp.gid === playerId || tp.playerId === playerId || tp.gid === gp?.id;
+  const matchP = (tp) => tp.gid === playerId || tp.playerId === playerId;
   const tp = tour ? tour.players.find(matchP) : null;
   let pairingHTML = '';
   let standHTML   = '';

@@ -946,7 +946,10 @@ function renderGlobalDecklists() {
   const archs   = getGlobalArchStats();
   const allUsed = getAllArchetypes(); // for datalist
   const q       = norm(G.search);
-  const filtered = archs.filter(a => !q || norm(a.name).includes(q));
+  const byWinrate = G._deckView === 'winrate';
+  const filtered = archs
+    .filter(a => !q || norm(a.name).includes(q))
+    .sort((a,b) => byWinrate ? (b.wr - a.wr) : (b.count - a.count));
   const total    = archs.reduce((s,a) => s+a.count, 0);
   const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
 
@@ -956,9 +959,19 @@ function renderGlobalDecklists() {
     <h1 class="mb4">Decklists</h1>
     <div class="muted small">${total} registros em ${G.tours.filter(t=>t.players.some(p=>p.deckArchetype)).length} torneios</div>
   </div>
-  <button class="btn btn-p" onclick="openArchModal(null)">
-    <i class="ti ti-plus"></i> Novo deck
-  </button>
+  <div class="fx gap8">
+    <div class="fx gap4" style="background:var(--s2);border-radius:8px;padding:3px">
+      <button class="btn btn-sm ${!G._deckView||G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por uso">
+        <i class="ti ti-chart-bar"></i> Share
+      </button>
+      <button class="btn btn-sm ${G._deckView==='winrate'?'btn-p':''}" onclick="G._deckView='winrate';render()" title="Ordenar por win rate">
+        <i class="ti ti-trophy"></i> Win Rate
+      </button>
+    </div>
+    <button class="btn btn-p" onclick="openArchModal(null)">
+      <i class="ti ti-plus"></i> Novo deck
+    </button>
+  </div>
 </div>
 
 <div class="sw mb16">
@@ -979,7 +992,16 @@ ${filtered.length === 0 ? `
   <div class="card p0 mb16">
     <table>
       <thead><tr>
-        <th>#</th><th>Deck</th><th>Usos</th><th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th><th>Win rate</th><th></th>
+        <th>#</th><th>Deck</th>
+        <th style="cursor:pointer" onclick="G._deckView='share';render()" title="Ordenar por uso">
+          Usos ${!byWinrate?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
+        </th>
+        <th>% Share</th>
+        <th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th>
+        <th style="cursor:pointer" onclick="G._deckView='winrate';render()" title="Ordenar por win rate">
+          Win Rate ${byWinrate?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
+        </th>
+        <th></th>
       </tr></thead>
       <tbody id="decks-table-body">
       ${filtered.map((a,i) => {
@@ -988,7 +1010,9 @@ ${filtered.length === 0 ? `
         const key = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
         const tourResults = getArchTourResults(a.name);
         const finishedResults = tourResults; // getArchTourResults já filtra só finalizados
-        return `<tr style="cursor:pointer" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
+        const shareP = total > 0 ? Math.round(a.count/total*100) : 0;
+        const maxWr   = filtered[0] ? (byWinrate ? filtered[0].wr : filtered.reduce((m,x)=>Math.max(m,x.wr),0)) : 100;
+        return `<tr style="cursor:pointer;${byWinrate&&i<3?'background:var(--s1)':''}" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
           <td class="muted mono" style="font-size:11px">${i+1}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px">
@@ -1004,11 +1028,24 @@ ${filtered.length === 0 ? `
               <span class="mono">${a.count}</span>
             </div>
           </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+                <div style="width:${shareP}%;height:100%;background:${color}88"></div>
+              </div>
+              <span class="mono muted" style="font-size:11px">${shareP}%</span>
+            </div>
+          </td>
           <td class="mono">${a.tournaments}</td>
           <td class="mono">${a.players}</td>
           <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
           <td>
-            <span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+                <div style="width:${Math.round(a.wr/Math.max(maxWr,1)*100)}%;height:100%;background:${a.wr>=50?'var(--it)':'var(--er)'}"></div>
+              </div>
+              <span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span>
+            </div>
           </td>
           <td>
             ${finishedResults.length > 0
@@ -1019,7 +1056,7 @@ ${filtered.length === 0 ? `
           </td>
         </tr>
         ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
-          <td colspan="8" style="padding:0;border:none">
+          <td colspan="9" style="padding:0;border:none">
             <div style="min-width:100%;background:var(--s1);border-bottom:2px solid var(--bd)">
               <div style="display:grid;grid-template-columns:20px 1fr 90px 70px 36px 1fr 70px 64px;align-items:center;padding:5px 16px;border-bottom:1px solid var(--bd)">
                 <span></span>
