@@ -895,9 +895,10 @@ function getGlobalArchStats() {
   // Convert Sets to counts and calculate win rate
   return Object.entries(stats).map(([name, s]) => {
     const gp = s.w + s.l + s.t;
+    const mp = s.w*3 + s.t;
     return {
       name, count: s.count, w: s.w, l: s.l, t: s.t,
-      gp, wr: gp > 0 ? Math.round(s.w/gp*100) : 0,
+      gp, mp, wr: gp > 0 ? Math.round(s.w/gp*100) : 0,
       players: s.players.size,
       tournaments: s.tournaments.size,
     };
@@ -946,10 +947,10 @@ function renderGlobalDecklists() {
   const archs   = getGlobalArchStats();
   const allUsed = getAllArchetypes(); // for datalist
   const q       = norm(G.search);
-  const byWinrate = G._deckView === 'winrate';
+  const byPts = G._deckView === 'pts';
   const filtered = archs
     .filter(a => !q || norm(a.name).includes(q))
-    .sort((a,b) => byWinrate ? (b.wr - a.wr) : (b.count - a.count));
+    .sort((a,b) => byPts ? (b.mp - a.mp) : (b.count - a.count));
   const total    = archs.reduce((s,a) => s+a.count, 0);
   const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
 
@@ -961,11 +962,11 @@ function renderGlobalDecklists() {
   </div>
   <div class="fx gap8">
     <div class="fx gap4" style="background:var(--s2);border-radius:8px;padding:3px">
-      <button class="btn btn-sm ${!G._deckView||G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por uso">
+      <button class="btn btn-sm ${!G._deckView||G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por share de uso">
         <i class="ti ti-chart-bar"></i> Share
       </button>
-      <button class="btn btn-sm ${G._deckView==='winrate'?'btn-p':''}" onclick="G._deckView='winrate';render()" title="Ordenar por win rate">
-        <i class="ti ti-trophy"></i> Win Rate
+      <button class="btn btn-sm ${G._deckView==='pts'?'btn-p':''}" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
+        <i class="ti ti-coins"></i> Pontos
       </button>
     </div>
     <button class="btn btn-p" onclick="openArchModal(null)">
@@ -994,12 +995,12 @@ ${filtered.length === 0 ? `
       <thead><tr>
         <th>#</th><th>Deck</th>
         <th style="cursor:pointer" onclick="G._deckView='share';render()" title="Ordenar por uso">
-          Usos ${!byWinrate?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
+          Usos ${!byPts?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
         </th>
         <th>% Share</th>
         <th>Torneios</th><th>Jogadores únicos</th><th>W/L/E</th>
-        <th style="cursor:pointer" onclick="G._deckView='winrate';render()" title="Ordenar por win rate">
-          Win Rate ${byWinrate?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
+        <th style="cursor:pointer" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
+          Pontos ${byPts?'<i class="ti ti-caret-down" style="font-size:10px;color:var(--it)"></i>':''}
         </th>
         <th></th>
       </tr></thead>
@@ -1011,8 +1012,8 @@ ${filtered.length === 0 ? `
         const tourResults = getArchTourResults(a.name);
         const finishedResults = tourResults; // getArchTourResults já filtra só finalizados
         const shareP = total > 0 ? Math.round(a.count/total*100) : 0;
-        const maxWr   = filtered[0] ? (byWinrate ? filtered[0].wr : filtered.reduce((m,x)=>Math.max(m,x.wr),0)) : 100;
-        return `<tr style="cursor:pointer;${byWinrate&&i<3?'background:var(--s1)':''}" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
+        
+        return `<tr style="cursor:pointer;${byPts&&i<3?'background:var(--s1)':''}" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
           <td class="muted mono" style="font-size:11px">${i+1}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px">
@@ -1042,9 +1043,9 @@ ${filtered.length === 0 ? `
           <td>
             <div style="display:flex;align-items:center;gap:6px">
               <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
-                <div style="width:${Math.round(a.wr/Math.max(maxWr,1)*100)}%;height:100%;background:${a.wr>=50?'var(--it)':'var(--er)'}"></div>
+                <div style="width:${filtered.length?Math.round(a.mp/Math.max(...filtered.map(x=>x.mp),1)*100):0}%;height:100%;background:var(--it)"></div>
               </div>
-              <span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span>
+              <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${a.mp}</span>
             </div>
           </td>
           <td>
