@@ -947,7 +947,7 @@ function renderGlobalDecklists() {
   const archs   = getGlobalArchStats();
   const allUsed = getAllArchetypes(); // for datalist
   const q       = norm(G.search);
-  const byPts = G._deckView === 'pts';
+  const byPts = !G._deckView || G._deckView === 'pts';
   const filtered = archs
     .filter(a => !q || norm(a.name).includes(q))
     .sort((a,b) => byPts ? (b.mp - a.mp) : (b.count - a.count));
@@ -962,10 +962,10 @@ function renderGlobalDecklists() {
   </div>
   <div class="fx gap8">
     <div class="fx gap4" style="background:var(--s2);border-radius:8px;padding:3px">
-      <button class="btn btn-sm ${!G._deckView||G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por share de uso">
+      <button class="btn btn-sm ${G._deckView==='share'?'btn-p':''}" onclick="G._deckView='share';render()" title="Ordenar por share de uso">
         <i class="ti ti-chart-bar"></i> Share
       </button>
-      <button class="btn btn-sm ${G._deckView==='pts'?'btn-p':''}" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
+      <button class="btn btn-sm ${!G._deckView||G._deckView==='pts'?'btn-p':''}" onclick="G._deckView='pts';render()" title="Ordenar por pontos totais">
         <i class="ti ti-coins"></i> Pontos
       </button>
     </div>
