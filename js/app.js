@@ -1020,7 +1020,7 @@ ${filtered.length === 0 ? `
         </tr>
         ${finishedResults.length > 0 ? `<tr id="${key}" style="display:none">
           <td colspan="8" style="padding:0;border:none">
-            <div style="width:100%;background:var(--s1);border-bottom:2px solid var(--bd)">
+            <div style="min-width:100%;background:var(--s1);border-bottom:2px solid var(--bd)">
               <div style="display:grid;grid-template-columns:20px 1fr 90px 70px 36px 1fr 70px 64px;align-items:center;padding:5px 16px;border-bottom:1px solid var(--bd)">
                 <span></span>
                 <span style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Torneio</span>
