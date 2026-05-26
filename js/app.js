@@ -1043,9 +1043,10 @@ ${filtered.length === 0 ? `
               </div>
               <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${a.mp}</span>
             </div></td>
-            <td>${hasPodium
+            <td class="fx gap4">${hasPodium
               ? `<button class="ib" onclick="event.stopPropagation();toggleArchResults('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-chevron-down" id="${key}-icon"></i></button>`
-              : '<span class="muted" style="font-size:11px">—</span>'}
+              : ''}
+              <button class="ib" onclick="event.stopPropagation();openArchModal('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-edit"></i></button>
             </td>
           </tr>
           ${hasPodium ? `<tr id="${key}" style="display:none;background:var(--s1)">
