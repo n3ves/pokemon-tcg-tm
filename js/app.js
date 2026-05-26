@@ -2739,35 +2739,7 @@ function updateToursList(q) {
 
 function updateDecksList(q) {
   G.search = q;
-  const archs = getGlobalArchStats();
-  const nq = norm(q);
-  const filtered = archs.filter(a => !nq || norm(a.name).includes(nq));
-  const el = document.getElementById('decks-table-body');
-  const el2 = document.getElementById('decks-top-archs');
-  const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
-  if (el) {
-    el.innerHTML = filtered.map((a,i) => {
-      const color = archColors[archs.indexOf(a) % archColors.length];
-      const maxCount = filtered[0]?.count || 1;
-      return `<tr>
-        <td class="muted mono" style="font-size:11px">${i+1}</td>
-        <td><div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
-          <span style="font-weight:500">${esc(a.name)}</span>
-        </div></td>
-        <td><div style="display:flex;align-items:center;gap:8px">
-          <div style="width:60px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
-            <div style="width:${Math.round(a.count/maxCount*100)}%;height:100%;background:${color}"></div>
-          </div>
-          <span class="mono">${a.count}</span>
-        </div></td>
-        <td class="mono">${a.tournaments}</td>
-        <td class="mono">${a.players}</td>
-        <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
-        <td><span class="badge ${a.wr>=50?'bs':'bd'}" style="font-size:11px">${a.wr}%</span></td>
-      </tr>`;
-    }).join('');
-  }
+  render();
 }
 
 
