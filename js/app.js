@@ -362,6 +362,13 @@ function renderLoginModal() {
 </div>`;
 }
 
+function _requestNotifPermission() {
+  if (typeof Notification === 'undefined') return;
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') notify('Notificações ativadas!', 'ok');
+  });
+}
+
 function renderHome() {
   const finished   = G.tours.filter(t=>t.status==='finished');
   const active     = G.tours.filter(t=>t.status==='rounds'||t.status==='topcut');
@@ -398,6 +405,13 @@ function renderHome() {
   </div>
 </div>
 
+${typeof Notification !== 'undefined' && Notification.permission === 'default' ? `
+<div class="well mb12" style="border:1px solid var(--bd);padding:10px 14px;display:flex;align-items:center;gap:10px">
+  <i class="ti ti-bell" style="color:var(--it);flex-shrink:0"></i>
+  <span style="flex:1;font-size:13px">Ative notificações para saber quando a rodada avançar</span>
+  <button class="btn btn-xs btn-p" onclick="_requestNotifPermission()">Ativar</button>
+  <button class="btn btn-xs" onclick="this.parentElement.remove()">✕</button>
+</div>` : ''}
 ${renderCountdownCard()}
 <div class="g2 gap16">
   <div>
@@ -2877,18 +2891,25 @@ function openArchModal(name) {
 function saveArchModal(oldName) {
   if (!requireAuth()) return;
   const name = document.getElementById('arch-name')?.value?.trim();
+  const icon = document.getElementById('arch-icon')?.value?.trim() || '';
   if (!name) return notify('Informe o nome','warn');
   G.settings.archetypes = G.settings.archetypes || [];
+  // Normalize to objects
+  G.settings.archetypes = G.settings.archetypes.map(a =>
+    typeof a === 'string' ? { name: a, icon: '' } : a
+  );
   if (oldName) {
     G.tours.forEach(t => {
       t.players.forEach(p => { if(p.deckArchetype===oldName) p.deckArchetype=name; });
     });
-    G.settings.archetypes = G.settings.archetypes.map(a => a===oldName?name:a);
+    const idx = G.settings.archetypes.findIndex(a => a.name === oldName);
+    if (idx >= 0) G.settings.archetypes[idx] = { name, icon };
     DB.save(SK.TN, G.tours);
   } else {
-    if (!G.settings.archetypes.includes(name)) G.settings.archetypes.push(name);
+    if (!G.settings.archetypes.some(a => a.name === name))
+      G.settings.archetypes.push({ name, icon });
   }
-  G.settings.archetypes.sort((a,b)=>a.localeCompare(b,'pt'));
+  G.settings.archetypes.sort((a,b) => a.name.localeCompare(b.name,'pt'));
   DB.save(SK.ST, G.settings);
   closeM(); notify('Salvo','ok');
 }
@@ -2981,8 +3002,20 @@ function updateToursList(q) {
    RESTORED RENDER FUNCTIONS
 ════════════════════════════════════════════════════════ */
 
+function getArchIcon(name) {
+  const arches = G.settings.archetypes || [];
+  const entry  = arches.find(a => (typeof a === 'object' ? a.name : a) === name);
+  return (typeof entry === 'object' && entry?.icon) ? entry.icon : null;
+}
+
+function archIconHtml(name, size=20) {
+  const url = getArchIcon(name);
+  if (!url) return '';
+  return `<img src="${url}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:3px;flex-shrink:0" onerror="this.style.display='none'">`;
+}
+
 function getAllArchetypes() {
-  const fromSettings = G.settings.archetypes || [];
+  const fromSettings = (G.settings.archetypes || []).map(a => typeof a === 'object' ? a.name : a);
   const fromTours = [];
   G.tours.forEach(t => t.players.forEach(p => {
     if (p.deckArchetype && !fromTours.includes(p.deckArchetype)) fromTours.push(p.deckArchetype);
@@ -3148,19 +3181,41 @@ ${v?`<div class="mb12"><button class="btn btn-xs btn-d" onclick="deleteVenue('${
 }
 
 function renderArchModal() {
-  const m = G.modal;
+  const m    = G.modal;
   const name = m.name || '';
+  const arches = G.settings.archetypes || [];
+  const entry  = name ? arches.find(a => (typeof a==='object'?a.name:a) === name) : null;
+  const icon   = (typeof entry === 'object' && entry?.icon) ? entry.icon : '';
   return `
 <div class="mtitle"><i class="ti ti-cards"></i> ${name?'Editar deck':'Novo deck'}</div>
-<div class="f mb16">
+<div class="f mb8">
   <label>Nome do deck *</label>
   <input id="arch-name" value="${esc(name)}" autofocus>
 </div>
-<div class="fx gap6" style="justify-content:flex-end">
+<div class="f mb4">
+  <label>Ícone (URL da imagem)</label>
+  <div class="fx gap8">
+    <input id="arch-icon" value="${esc(icon)}" placeholder="https://limitlesstcg.com/..." style="flex:1" oninput="previewArchIcon()">
+    <div id="arch-icon-preview" style="width:36px;height:36px;border:1px solid var(--bd);border-radius:6px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--s2)">
+      ${icon ? `<img src="${esc(icon)}" style="width:32px;height:32px;object-fit:contain" onerror="this.style.display='none'">` : '<i class="ti ti-photo muted"></i>'}
+    </div>
+  </div>
+  <div class="muted small mt4">Dica: use imagens do <a href="https://limitlesstcg.com" target="_blank" style="color:var(--it)">Limitless TCG</a> ou Pokémon DB</div>
+</div>
+<div class="fx gap6" style="justify-content:flex-end;margin-top:12px">
   <button class="btn" onclick="closeM()">Cancelar</button>
   ${name?`<button class="btn btn-xs btn-d" onclick="deleteArchetype('${esc(name)}')"><i class="ti ti-trash"></i></button>`:''}
   <button class="btn btn-p" onclick="saveArchModal('${esc(name)}')"><i class="ti ti-check"></i> Salvar</button>
 </div>`;
+}
+
+function previewArchIcon() {
+  const url = document.getElementById('arch-icon')?.value?.trim();
+  const preview = document.getElementById('arch-icon-preview');
+  if (!preview) return;
+  preview.innerHTML = url
+    ? `<img src="${url}" style="width:32px;height:32px;object-fit:contain" onerror="this.innerHTML='<i class=ti ti-photo muted></i>'">`
+    : '<i class="ti ti-photo muted"></i>';
 }
 
 function renderCreateTour() {

@@ -71,7 +71,7 @@ function migrateIDs() {
 
 // ─── Constants ──────────────────────────────────────────────
 // Constantes e configurações globais
-const VER = '1.1.0';
+const VER = '1.2.0';
 const SK  = { PL:'ptcg_pl_v3', TN:'ptcg_tn_v3', ST:'ptcg_st_v3' };
 const DIVS = ['Juniors','Seniors','Masters'];
 const DC   = { Juniors:'dJ', Seniors:'dS', Masters:'dM' };
@@ -281,6 +281,37 @@ function recCut(n, mode) {
 /* ════════════════════════════════════════════════════════
    SUPABASE REALTIME — WebSocket nativo (protocolo v2)
 ════════════════════════════════════════════════════════ */
+
+// Notifica o jogador quando a rodada avança (Realtime)
+function _notifyRoundAdvance(tour) {
+  if (typeof G === 'undefined' || typeof notify !== 'function') return;
+
+  // Monta mensagem com a mesa do jogador atual (se logado e estiver no torneio)
+  let msg = '🔔 Rodada ' + tour.currentRound + ' iniciada em "' + (tour.name||'torneio') + '"';
+
+  if (typeof G !== 'undefined' && G.auth) {
+    const myGid = G.auth.playerId || null; // se tiver
+    const rnd   = tour.rounds && tour.rounds[tour.currentRound - 1];
+    if (rnd && myGid) {
+      // Tenta encontrar a mesa do jogador logado
+      const tp = tour.players.find(p => p.gid === myGid || p.playerId === myGid);
+      if (tp) {
+        const pair = rnd.pairings.find(p => p.p1 === tp.id || p.p2 === tp.id);
+        if (pair && pair.table) msg += ' — sua mesa: ' + pair.table;
+      }
+    }
+  }
+
+  notify(msg, 'ok');
+
+  // Tenta notificação nativa do browser se permitido
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification('Jerry — Nova Rodada', { body: msg, icon: '/favicon.ico' });
+    } catch(e) {}
+  }
+}
+
 const SBRealtime = (function () {
   // Supabase Realtime usa o protocolo Phoenix/WebSocket
   // URL: wss://<project>.supabase.co/realtime/v1/websocket
@@ -376,6 +407,10 @@ const SBRealtime = (function () {
       } else if (newRow) {
         const incoming = SB.rowT(newRow);
         const existing = G.tours.find(function(x) { return x.id === incoming.id; });
+        // Detecta avanço de rodada para notificar
+        if (existing && incoming.currentRound > existing.currentRound && incoming.status === 'rounds') {
+          _notifyRoundAdvance(incoming);
+        }
         // Preserva timer local se for o torneio activo
         if (existing) { incoming._timer = existing._timer; incoming._timerOn = existing._timerOn; }
         const idx = G.tours.findIndex(function(x) { return x.id === incoming.id; });
