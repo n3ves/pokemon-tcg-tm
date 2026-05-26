@@ -2012,6 +2012,11 @@ function autoDivM(yr) { const d=inferDiv(yr); const s=document.getElementById('m
 function render() {
   const app = document.getElementById('app');
 
+  // Guarda o foco antes de recriar o DOM
+  const activeId  = document.activeElement?.id;
+  const activeVal = document.activeElement?.value;
+  const activeSel = document.activeElement?.selectionStart;
+
   // Loading screen
   if (G.loading) {
     app.innerHTML = `
@@ -2034,7 +2039,7 @@ function render() {
     { icon:'ti-calendar-month', label:'Temporadas', view:'seasons' },
     { icon:'ti-medal',  label:'Ranking', view:'ranking' },
     null,
-    { icon:'ti-settings',label:'Config.',   view:'settings' },
+    ...(isLoggedIn() ? [{ icon:'ti-settings',label:'Config.',   view:'settings' }] : []),
   ];
 
   const sidebar = !isTour ? `<div class="sb">
@@ -2093,6 +2098,16 @@ function render() {
   <div id="notif-slot">${renderNotif()}</div>
   ${G.modal ? renderModal() : ''}`;
 
+  // Restaura foco no input que estava ativo antes do render
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el && el !== document.activeElement) {
+      el.focus();
+      if (activeSel != null && el.setSelectionRange) {
+        try { el.setSelectionRange(activeSel, activeSel); } catch(e) {}
+      }
+    }
+  }
 }
 
 function renderNotif() {
