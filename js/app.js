@@ -2739,7 +2739,53 @@ function updateToursList(q) {
 
 function updateDecksList(q) {
   G.search = q;
-  render();
+  const nq         = norm(q);
+  const archs      = getGlobalArchStats();
+  const byPts      = !G._deckView || G._deckView === 'pts';
+  const filtered   = archs
+    .filter(a => !nq || norm(a.name).includes(nq))
+    .sort((a,b) => byPts ? (b.mp - a.mp) : (b.count - a.count));
+  const total      = archs.reduce((s,a) => s+a.count, 0);
+  const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517','#D4537E','#888780','#639922','#993C1D','#534AB7'];
+  const el = document.getElementById('decks-table-body');
+  if (!el) { render(); return; }
+
+  el.innerHTML = filtered.map((a,i) => {
+    const color     = archColors[archs.indexOf(a) % archColors.length];
+    const maxCount  = filtered[0]?.count || 1;
+    const maxMp     = filtered[0]?.mp    || 1;
+    const key       = 'arch-results-' + btoa(encodeURIComponent(a.name)).slice(0,12);
+    const hasPodium = getArchTourResults(a.name).length > 0;
+    const shareP    = total > 0 ? Math.round(a.count/total*100) : 0;
+    return `<tr style="cursor:pointer" onclick="toggleArchResults('${esc(a.name).replace(/'/g,'')}')">
+      <td class="muted mono" style="font-size:11px">${i+1}</td>
+      <td><div class="fx gap8">
+        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+        <span style="font-weight:500">${esc(a.name)}</span>
+      </div></td>
+      <td><div class="fx gap6">
+        <div style="width:50px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+          <div style="width:${Math.round(a.count/maxCount*100)}%;height:100%;background:${color}"></div>
+        </div>
+        <span class="mono">${a.count}</span>
+      </div></td>
+      <td><span class="mono muted" style="font-size:11px">${shareP}%</span></td>
+      <td class="mono">${a.tournaments}</td>
+      <td class="mono">${a.players}</td>
+      <td class="mono muted">${a.w}/${a.l}/${a.t}</td>
+      <td><div class="fx gap6">
+        <div style="width:40px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+          <div style="width:${Math.round(a.mp/maxMp*100)}%;height:100%;background:var(--it)"></div>
+        </div>
+        <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${a.mp}</span>
+      </div></td>
+      <td class="fx gap4">${hasPodium
+        ? `<button class="ib" onclick="event.stopPropagation();toggleArchResults('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-chevron-down" id="${key}-icon"></i></button>`
+        : ''}
+        <button class="ib" onclick="event.stopPropagation();openArchModal('${esc(a.name).replace(/'/g,'')}')"><i class="ti ti-edit"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 
