@@ -242,5 +242,14 @@ tbody tr:hover td{background:var(--s2)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--s3);border-radius:3px}
 
-@media(max-width:700px){.sb{display:none}.sgrid,.g2,.g3,.g4{grid-template-columns:1fr 1fr}.main{padding:12px}}
+@media(max-width:700px){
+  .sb{position:fixed;left:-220px;top:0;height:100vh;z-index:1000;transition:left .25s ease;box-shadow:none}
+  .sb.open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.4)}
+  .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999}
+  .sb-overlay.open{display:block}
+  .hamburger{display:flex}
+  .sgrid,.g2,.g3,.g4{grid-template-columns:1fr 1fr}
+  .main{padding:12px}
+}
+@media(min-width:701px){.hamburger{display:none}}
 @media(max-width:480px){.sgrid,.g2,.g3,.g4{grid-template-columns:1fr}}

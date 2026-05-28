@@ -2045,7 +2045,7 @@ function render() {
   const sidebar = !isTour ? `<div class="sb">
     ${navItems.map(n => n===null
       ? `<div style="height:8px"></div>`
-      : `<div class="ni ${G.view===n.view?'on':''}" onclick="nav('${n.view}');G.search=''">
+      : `<div class="ni ${G.view===n.view?'on':''}" onclick="nav('${n.view}');G.search='';closeSidebar()">
           <i class="ti ${n.icon}"></i>${n.label}</div>`
     ).join('')}
   </div>` : '';
@@ -2067,8 +2067,9 @@ function render() {
 
 
   app.innerHTML = `
+  <div id="sb-overlay" class="sb-overlay" onclick="closeSidebar()"></div>
   ${!isTour ? `<div class="tb">
-    <strong style="font-size:15px;letter-spacing:-.3px">🎴 Jerry</strong>
+    <button class="ib hamburger" onclick="toggleSidebar()" style="font-size:20px;margin-right:4px"><i class="ti ti-menu-2"></i></button><strong style="font-size:15px;letter-spacing:-.3px">🎴 Jerry</strong>
     <span class="badge bn" style="font-size:10px">v${VER}</span>
     ${G._lastSync ? `<span class="muted" style="font-size:10px" title="Última sincronização">⟳ ${new Date(G._lastSync).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
@@ -4329,6 +4330,21 @@ function saveEditPairing(pairingId) {
   });
   closeM();
   notify('Pareamento atualizado', 'ok');
+}
+
+
+function toggleSidebar() {
+  const sb  = document.querySelector('.sb');
+  const ov  = document.getElementById('sb-overlay');
+  if (!sb) return;
+  sb.classList.toggle('open');
+  if (ov) ov.classList.toggle('open');
+}
+function closeSidebar() {
+  const sb = document.querySelector('.sb');
+  const ov = document.getElementById('sb-overlay');
+  if (sb) sb.classList.remove('open');
+  if (ov) ov.classList.remove('open');
 }
 
 function loadOffline() {
