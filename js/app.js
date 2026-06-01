@@ -463,6 +463,12 @@ ${renderCountdownCard()}
         <button class="btn fw jc" style="padding:11px" onclick="nav('players')">
           <i class="ti ti-users"></i> Ver jogadores
         </button>
+        <button class="btn fw jc" style="padding:11px" onclick="nav('ranking')">
+          <i class="ti ti-medal"></i> Ver ranking ELO
+        </button>
+        <button class="btn fw jc" style="padding:11px" onclick="nav('decklists')">
+          <i class="ti ti-cards"></i> Ver meta atual
+        </button>
       </div>
     </div>
   </div>
