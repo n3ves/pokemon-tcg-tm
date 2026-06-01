@@ -463,13 +463,53 @@ ${renderCountdownCard()}
         <button class="btn fw jc" style="padding:11px" onclick="nav('players')">
           <i class="ti ti-users"></i> Ver jogadores
         </button>
-        <button class="btn fw jc" style="padding:11px" onclick="nav('ranking')">
-          <i class="ti ti-medal"></i> Ver ranking ELO
-        </button>
-        <button class="btn fw jc" style="padding:11px" onclick="nav('decklists')">
-          <i class="ti ti-cards"></i> Ver meta atual
-        </button>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="fx sb2 mb10">
+        <h3>🏆 Top 5 Ranking</h3>
+        <button class="btn btn-xs" onclick="nav('ranking')">Ver todos</button>
+      </div>
+      ${(() => {
+        const ratings = calcElo();
+        const top5 = G.players
+          .map(gp => { const r = ratings[gp.id]; return r && r.games>=1 ? {...gp,...r} : null; })
+          .filter(Boolean)
+          .sort((a,b) => b.rating-a.rating)
+          .slice(0,5);
+        if (!top5.length) return '<div class="muted small tc">Nenhum dado ainda</div>';
+        return top5.map((p,i) => `
+          <div class="fx gap8" style="padding:5px 0;border-bottom:0.5px solid var(--bd);align-items:center;cursor:pointer" onclick="nav('pdetail',{pid:'${p.id}'})">
+            <span style="font-size:13px;width:20px;flex-shrink:0">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span>
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
+            <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${Math.round(p.rating)}</span>
+          </div>`).join('');
+      })()}
+    </div>
+
+    <div class="card">
+      <div class="fx sb2 mb10">
+        <h3>🃏 Top 5 Meta</h3>
+        <button class="btn btn-xs" onclick="nav('decklists')">Ver todos</button>
+      </div>
+      ${(() => {
+        const archs = getGlobalArchStats().slice(0,5);
+        const archColors = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#BA7517'];
+        if (!archs.length) return '<div class="muted small tc">Nenhum deck registrado</div>';
+        const maxMp = archs[0]?.mp || 1;
+        return archs.map((a,i) => `
+          <div class="fx gap8" style="padding:5px 0;border-bottom:0.5px solid var(--bd);align-items:center">
+            <span style="width:8px;height:8px;border-radius:2px;background:${archColors[i]};flex-shrink:0"></span>
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.name)}</span>
+            <div style="width:40px;height:3px;background:var(--s2);border-radius:2px;overflow:hidden">
+              <div style="width:${Math.round(a.mp/maxMp*100)}%;height:100%;background:${archColors[i]}"></div>
+            </div>
+            <span class="mono muted" style="font-size:11px">${a.mp}pts</span>
+          </div>`).join('');
+      })()}
+    </div>
+
     </div>
   </div>
 </div>`;
