@@ -373,7 +373,11 @@ function renderHome() {
   const finished   = G.tours.filter(t=>t.status==='finished');
   const active     = G.tours.filter(t=>t.status==='rounds'||t.status==='topcut');
   const planned    = G.tours.filter(t=>t.status==='registration');
-  const recent     = [...G.tours].sort((a,b)=>(b.date||b.createdAt)>(a.date||a.createdAt)?1:-1).reverse().slice(0,6);
+  const recent     = [...G.tours].sort((a,b)=>{
+    const da = a.date || a.createdAt || '';
+    const db = b.date || b.createdAt || '';
+    return db > da ? 1 : db < da ? -1 : 0;
+  }).slice(0,6);
   const venues     = G.venues.filter(v=>v.active!==false);
 
   return `
