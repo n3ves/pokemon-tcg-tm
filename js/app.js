@@ -474,13 +474,13 @@ ${renderCountdownCard()}
       ${(() => {
         const ratings = calcElo();
         const top5 = G.players
-          .map(gp => { const r = ratings[gp.id]; return r && r.games>=1 ? {...gp,...r} : null; })
+          .map(gp => { const r = ratings[gp.playerId]; return (r && r.games>=1) ? {...gp,...r} : null; })
           .filter(Boolean)
           .sort((a,b) => b.rating-a.rating)
           .slice(0,5);
-        if (!top5.length) return '<div class="muted small tc">Nenhum dado ainda</div>';
+        if (!top5.length) return '<div class="muted small tc">Nenhum dado de ranking ainda</div>';
         return top5.map((p,i) => `
-          <div class="fx gap8" style="padding:5px 0;border-bottom:0.5px solid var(--bd);align-items:center;cursor:pointer" onclick="nav('pdetail',{pid:'${p.id}'})">
+          <div class="fx gap8" style="padding:5px 0;border-bottom:0.5px solid var(--bd);align-items:center;cursor:pointer" onclick="openPModal('${p.id}')">
             <span style="font-size:13px;width:20px;flex-shrink:0">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span>
             <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
             <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${Math.round(p.rating)}</span>
@@ -510,7 +510,6 @@ ${renderCountdownCard()}
       })()}
     </div>
 
-    </div>
   </div>
 </div>`;
 }
