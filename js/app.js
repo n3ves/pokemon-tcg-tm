@@ -452,7 +452,7 @@ ${renderCountdownCard()}
     </div>`:''}
   </div>
   <div class="fxc gap12">
-    <div class="card">
+    ${isLoggedIn()?`<div class="card">
       <h3 class="mb12">Ações rápidas</h3>
       <div class="fxc gap8">
         <button class="btn btn-p fw jc" style="padding:11px" onclick="nav('ctour')">
@@ -468,7 +468,7 @@ ${renderCountdownCard()}
           <i class="ti ti-users"></i> Ver jogadores
         </button>
       </div>
-    </div>
+    </div>`:''}
 
     <div class="card">
       <div class="fx sb2 mb10">
@@ -528,19 +528,19 @@ function renderPlayers() {
   );
   const incomplete = G.players.filter(p => !p.playerId || !p.birthDate || !p.city);
   return `
-${incomplete.length>0?`<div class="well mb12" style="border:1px solid var(--wt);background:var(--wb);border-radius:8px;padding:10px 14px"><div class="fx gap8"><i class="ti ti-alert-triangle" style="color:var(--wt);flex-shrink:0;margin-top:2px"></i><div><strong style="font-size:13px;color:var(--wt)">${incomplete.length} perfil${incomplete.length>1?'s':''} incompleto${incomplete.length>1?'s':''}</strong><div class="small mt4" style="color:var(--wt);opacity:.85">${incomplete.slice(0,3).map(p=>esc(p.name)).join(', ')}${incomplete.length>3?' e mais '+(incomplete.length-3):''} — faltam dados como Player ID, ano de nascimento ou cidade.</div></div></div></div>`:''}
+${isLoggedIn() && incomplete.length>0?`<div class="well mb12" style="border:1px solid var(--wt);background:var(--wb);border-radius:8px;padding:10px 14px"><div class="fx gap8"><i class="ti ti-alert-triangle" style="color:var(--wt);flex-shrink:0;margin-top:2px"></i><div><strong style="font-size:13px;color:var(--wt)">${incomplete.length} perfil${incomplete.length>1?'s':''} incompleto${incomplete.length>1?'s':''}</strong><div class="small mt4" style="color:var(--wt);opacity:.85">${incomplete.slice(0,3).map(p=>esc(p.name)).join(', ')}${incomplete.length>3?' e mais '+(incomplete.length-3):''} — faltam dados como Player ID, ano de nascimento ou cidade.</div></div></div></div>`:''}
 <div class="fx sb2 mb16"><h1>Jogadores</h1>
-  <div class="fx gap6">
+  ${isLoggedIn()?`<div class="fx gap6">
     <button class="btn btn-sm" onclick="exportPlayers()"><i class="ti ti-download"></i> Exportar</button>
     <div class="fx gap6">
       <button class="btn btn-sm" onclick="importPlayersTOM()"><i class="ti ti-file-code"></i> Importar .xml (TOM)</button>
       <button class="btn btn-sm" onclick="importPlayersFile()"><i class="ti ti-upload"></i> Importar .json</button>
     </div>
     <button class="btn btn-p btn-sm" onclick="openPModal(null)"><i class="ti ti-plus"></i> Novo</button>
-  </div>
+  </div>`:''}
 </div>
 <div class="sw"><i class="ti ti-search"></i>
-  <input id="players-search" placeholder="Buscar nome, nickname, ID, cidade..." value="${esc(G.search)}" oninput="updatePlayersList(this.value)" autofocus>
+  <input id="players-search" placeholder="Buscar nome, nickname${isLoggedIn()?', ID':''}, cidade..." value="${esc(G.search)}" oninput="updatePlayersList(this.value)" autofocus>
 </div>
 <div class="card p0" id="players-list">
 ${list.length===0?`<div class="empty"><i class="ti ti-user-off"></i><p>Nenhum jogador encontrado</p></div>`:
@@ -767,12 +767,12 @@ function renderPDetail() {
     <h1 style="font-size:18px">${esc(gp.name)}${gp.nickname?` <span class="muted" style="font-size:14px">"${esc(gp.nickname)}"</span>`:''}</h1>
     <div class="fx gap6 mt4">
       ${dbadge(gp.division)}
-      ${gp.playerId?`<span class="badge bn">ID: ${esc(gp.playerId)}</span>`:''}
+      ${isLoggedIn() && gp.playerId?`<span class="badge bn">ID: ${esc(gp.playerId)}</span>`:''}
       ${gp.city?`<span class="badge bn">${esc(gp.city)}</span>`:''}
-      ${age!==null?`<span class="badge bn">${age} anos</span>`:''}
+      ${isLoggedIn() && age!==null?`<span class="badge bn">${age} anos</span>`:''}
     </div>
   </div>
-  <button class="btn btn-sm ml" onclick="openPModal('${gp.id}')"><i class="ti ti-edit"></i> Editar</button>
+  ${isLoggedIn()?`<button class="btn btn-sm ml" onclick="openPModal('${gp.id}')"><i class="ti ti-edit"></i> Editar</button>`:''}
 </div>
 
 <div class="g4 mb16">
@@ -2165,7 +2165,7 @@ function renderNotif() {
   return `<div class="notif ${G.notif.type}">${esc(G.notif.msg)}</div>`;
 }
 
-function openPModal(id, addToTour=false) { G.modal={type:'player',id,addToTour}; render(); }
+function openPModal(id, addToTour=false) { if(!isLoggedIn())return; G.modal={type:'player',id,addToTour}; render(); }
 
 function savePlayer(id, addToTourId) {
   const name = document.getElementById('m-name')?.value?.trim();
@@ -2762,12 +2762,12 @@ function _playerRow(p, i) {
         ${p.nickname?`<span class="muted small">"${esc(p.nickname)}"</span>`:''}
         ${dbadge(p.division)}
       </div>
-      <div class="muted small mt4">${p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}${(!p.playerId||!p.birthDate)?'<span class="muted" style="color:var(--wt);margin-left:4px">⚠</span>':''}</div>
+      <div class="muted small mt4">${isLoggedIn()&&p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}${isLoggedIn()&&(!p.playerId||!p.birthDate)?'<span class="muted" style="color:var(--wt);margin-left:4px">⚠</span>':''}</div>
     </div>
-    <div class="fx gap4">
+    ${isLoggedIn()?`<div class="fx gap4">
       <button class="btn btn-xs" onclick="event.stopPropagation();openPModal('${p.id}')"><i class="ti ti-edit"></i></button>
       <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delPlayer('${p.id}')"><i class="ti ti-trash"></i></button>
-    </div>
+    </div>`:''}
   </div>`;
 }
 
@@ -2934,6 +2934,7 @@ function updateVenuesList(q) {
 }
 
 function openVenueModal(id) {
+  if (!isLoggedIn()) return;
   G.modal = { type:'venue', id }; render();
 }
 
@@ -3150,6 +3151,13 @@ function renderVenues() {
   const list = G.venues
     .filter(v => !q || norm(v.name).includes(q) || norm(v.city||'').includes(q) || norm(v.responsible||'').includes(q))
     .sort((a,b) => a.name.localeCompare(b.name,'pt'));
+  if (!isLoggedIn()) {
+    return `<div class="empty" style="padding:60px 20px">
+      <i class="ti ti-lock" style="font-size:48px;color:var(--t2)"></i>
+      <p style="margin-top:12px">As informações de locais são restritas.</p>
+      <button class="btn btn-p btn-sm mt8" onclick="G.modal={type:'login'};render()"><i class="ti ti-lock"></i> Entrar</button>
+    </div>`;
+  }
   return `
 <div class="fx sb2 mb16">
   <div>
@@ -3170,6 +3178,13 @@ function renderVenues() {
 function renderVenueDetail() {
   const v = G.venues.find(x=>x.id===G.vid);
   if (!v) return `<div class="empty">Local não encontrado</div>`;
+  if (!isLoggedIn()) {
+    return `<div class="empty" style="padding:60px 20px">
+      <i class="ti ti-lock" style="font-size:48px;color:var(--t2)"></i>
+      <p style="margin-top:12px">As informações de locais são restritas.</p>
+      <button class="btn btn-p btn-sm mt8" onclick="G.modal={type:'login'};render()"><i class="ti ti-lock"></i> Entrar</button>
+    </div>`;
+  }
   const tours = G.tours.filter(t => t.venueId === v.id).sort(sortByDate);
   return `
 <div class="fx gap12 mb16">
@@ -3402,10 +3417,14 @@ function renderTour() {
     { id:'decklists', icon:'ti-cards',        label:'Decklists' },
     ...(t.topBracket?.length ? [{ id:'topcut', icon:'ti-tournament', label:'Top Cut' }] : []),
     ...(t.status==='finished' ? [{ id:'finished', icon:'ti-trophy', label:'Resultado' }] : []),
-    { id:'debug',  icon:'ti-bug',      label:'Debug' },
-    { id:'log',    icon:'ti-history',  label:'Log' },
-    { id:'export', icon:'ti-download', label:'Exportar' },
+    ...(isLoggedIn() ? [
+      { id:'debug',  icon:'ti-bug',      label:'Debug' },
+      { id:'log',    icon:'ti-history',  label:'Log' },
+      { id:'export', icon:'ti-download', label:'Exportar' },
+    ] : []),
   ];
+  // Bloqueia acesso direto a abas restritas
+  if (!isLoggedIn() && ['debug','log','export'].includes(G.tab)) G.tab = 'reg';
   const rnd = t.rounds[t.currentRound-1];
   const done = rnd ? rnd.pairings.filter(p=>p.result!==null).length : 0;
   const total = rnd ? rnd.pairings.length : 0;
