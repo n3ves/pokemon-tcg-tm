@@ -544,23 +544,9 @@ ${isLoggedIn() && incomplete.length>0?`<div class="well mb12" style="border:1px 
 </div>
 <div class="card p0" id="players-list">
 ${list.length===0?`<div class="empty"><i class="ti ti-user-off"></i><p>Nenhum jogador encontrado</p></div>`:
-list.map(p=>`<div class="plr" onclick="nav('pdetail',{pid:'${p.id}'})">
-  <div class="av">${esc(initials(p.name))}</div>
-  <div style="flex:1;min-width:0">
-    <div class="fx gap6">
-      <strong>${esc(p.name)}</strong>
-      ${p.nickname?`<span class="muted small">"${esc(p.nickname)}"</span>`:''}
-      ${dbadge(p.division)}
-    </div>
-    <div class="muted small mt4">${p.playerId?'ID: '+esc(p.playerId)+' · ':''}${esc(p.city||'')}${p.state?' / '+p.state:''}</div>
-  </div>
-  <div class="fx gap4">
-    <button class="btn btn-xs" onclick="event.stopPropagation();openPModal('${p.id}')"><i class="ti ti-edit"></i></button>
-    <button class="btn btn-xs btn-d" onclick="event.stopPropagation();delPlayer('${p.id}')"><i class="ti ti-trash"></i></button>
-  </div>
-</div>`).join('')}
+list.map((p,i)=>_playerRow(p,i)).join('')}
 </div>
-<p class="muted small mt8 tc">${list.length} jogador${list.length!==1?'es':''}</p>`;
+<p class="muted small mt8 tc" id="players-count">${list.length} jogador${list.length!==1?'es':''}</p>`;
 }
 
 
