@@ -477,16 +477,18 @@ ${renderCountdownCard()}
       </div>
       ${(() => {
         const ratings = calcElo();
-        const top5 = G.players
+        const ranked = G.players
           .map(gp => { const r = ratings[gp.playerId]; return (r && r.games>=1) ? {...gp,...r} : null; })
-          .filter(Boolean)
-          .sort((a,b) => b.rating-a.rating)
-          .slice(0,5);
+          .filter(Boolean);
+        // Prefere classificados (10+ partidas); se não houver, mostra todos
+        const classificados = ranked.filter(p => p.games >= 10);
+        const pool = classificados.length ? classificados : ranked;
+        const top5 = pool.sort((a,b) => b.rating-a.rating).slice(0,5);
         if (!top5.length) return '<div class="muted small tc">Nenhum dado de ranking ainda</div>';
         return top5.map((p,i) => `
           <div class="fx gap8" style="padding:5px 0;border-bottom:0.5px solid var(--bd);align-items:center;cursor:pointer" onclick="openPModal('${p.id}')">
             <span style="font-size:13px;width:20px;flex-shrink:0">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span>
-            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}${p.games<10?' <span class="muted" style="font-size:10px">(prov.)</span>':''}</span>
             <span class="mono" style="font-size:12px;font-weight:600;color:var(--it)">${Math.round(p.rating)}</span>
           </div>`).join('');
       })()}
@@ -4058,53 +4060,111 @@ function calcElo() {
 
 function renderRanking() {
   const ratings = calcElo();
-  const MIN_GAMES = 1;
-  const players = G.players
+  const PROVISIONAL_THRESHOLD = 10;
+
+  // Monta lista de jogadores com pelo menos 1 partida
+  const all = G.players
     .map(gp => {
       const r = ratings[gp.playerId] || ratings[gp.id];
-      if (!r || r.games < MIN_GAMES) return null;
+      if (!r || r.games < 1) return null;
       const gp2 = { ...gp, ...r };
-      gp2.wr = r.games > 0 ? Math.round(r.w/r.games*100) : 0;
+      gp2.wr     = r.games > 0 ? Math.round(r.w/r.games*100) : 0;
+      gp2.status = r.games >= PROVISIONAL_THRESHOLD ? 'CLASSIFICADO' : 'PROVISORIO';
       return gp2;
     })
-    .filter(Boolean)
-    .sort((a,b) => b.rating - a.rating);
+    .filter(Boolean);
 
-  const unranked = G.players.filter(gp => {
-    const r = ratings[gp.id];
-    return !r || r.games < MIN_GAMES;
+  const oficial    = all.filter(p => p.status === 'CLASSIFICADO').sort((a,b) => b.rating - a.rating);
+  const provisorio = all.filter(p => p.status === 'PROVISORIO').sort((a,b) => b.rating - a.rating);
+  const semJogo    = G.players.filter(gp => {
+    const r = ratings[gp.playerId] || ratings[gp.id];
+    return !r || r.games < 1;
   });
 
-  return `
-<div class="fx sb2 mb16">
-  <div>
-    <h1 class="mb4">Ranking Global</h1>
-    <div class="muted small">ELO modificado · K=32 (LC×0.5, Cup×1.0, Champ×2.0) · só jogadores vinculados ao cadastro</div>
-  </div>
-</div>
-${players.length===0?`<div class="card"><div class="empty"><i class="ti ti-trophy"></i><p>Nenhum jogador rankeado ainda.<br><span class="small">São necessárias ao menos 3 partidas em torneios finalizados.</span></p></div></div>`:`
-<div class="card p0 mb16 tov">
-<table>
-  <thead><tr><th>#</th><th>Jogador</th><th>ELO</th><th>W/L/E</th><th>WR%</th><th>Partidas</th></tr></thead>
-  <tbody>
-    ${players.map((p,i)=>`
+  const rowsOf = (arr, prov) => arr.map((p,i) => `
     <tr style="cursor:pointer" onclick="nav('pdetail',{pid:'${p.id}'})">
-      <td class="mono" style="font-weight:${i<3?700:400}">
-        ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+      <td class="mono" style="font-weight:${i<3&&!prov?700:400}">
+        ${!prov && i===0?'🥇':!prov && i===1?'🥈':!prov && i===2?'🥉':i+1}
       </td>
       <td><div class="fx gap6">${esc(p.name)} ${dbadge(p.division)}</div></td>
       <td class="mono" style="font-weight:700;font-size:15px">${Math.round(p.rating)}</td>
       <td class="mono">${p.w}/${p.l}/${p.t}</td>
       <td><span class="badge ${p.wr>=50?'bs':'bd'}">${p.wr}%</span></td>
       <td class="muted small">${p.games}</td>
-    </tr>`).join('')}
-  </tbody>
+      ${prov?`<td><span class="badge bw" style="font-size:10px">faltam ${PROVISIONAL_THRESHOLD - p.games}</span></td>`:''}
+    </tr>`).join('');
+
+  return `
+<div class="fx sb2 mb16">
+  <div>
+    <h1 class="mb4">Ranking</h1>
+    <div class="muted small">ELO modificado · K=32 (LC×0.5, Cup×1.0, Champ×2.0) · classificação a partir de ${PROVISIONAL_THRESHOLD} partidas</div>
+  </div>
+</div>
+
+${(() => {
+  const pool = oficial.length ? oficial : all;
+  if (!all.length) return '';
+  const top    = oficial[0] || [...all].sort((a,b)=>b.rating-a.rating)[0];
+  const avg    = Math.round(all.reduce((s,p)=>s+p.rating,0) / all.length);
+  const totalGames = all.reduce((s,p)=>s+p.games,0);
+  return `<div class="sgrid mb16">
+    <div class="sc"><div class="sv">${all.length}</div><div class="sl">Jogadores no ranking</div></div>
+    <div class="sc"><div class="sv">${oficial.length}</div><div class="sl">Classificados</div></div>
+    <div class="sc"><div class="sv">${top?Math.round(top.rating):'—'}</div><div class="sl">Maior ELO${top?' · '+esc(top.name.split(' ')[0]):''}</div></div>
+    <div class="sc"><div class="sv">${avg}</div><div class="sl">ELO médio</div></div>
+  </div>`;
+})()}
+
+<div class="card mb16">
+  <div class="lbl mb10"><i class="ti ti-info-circle"></i> Como funciona o ELO</div>
+  <div class="muted small" style="line-height:1.7">
+    Todo jogador começa em <strong>1500</strong>. Após cada partida, você ganha pontos ao vencer e perde ao ser derrotado — a quantidade depende da força do adversário: vencer alguém com ELO mais alto rende mais pontos, perder para alguém mais fraco custa mais caro.
+    O peso do evento também conta: <strong>League Challenge</strong> vale menos (×0.5), <strong>Cups</strong> valem o padrão (×1.0) e <strong>Championships</strong> valem o dobro (×2.0).
+  </div>
+</div>
+
+<h2 class="mb12"><i class="ti ti-trophy" style="color:var(--st)"></i> Ranking Oficial <span class="muted small">(${oficial.length})</span></h2>
+${oficial.length>=3?`
+<div class="mb16" style="display:flex;gap:10px;align-items:flex-end;justify-content:center">
+  ${[1,0,2].map(idx => {
+    const p = oficial[idx];
+    if (!p) return '';
+    const isFirst = idx===0;
+    const h = isFirst ? 110 : idx===1 ? 88 : 72;
+    const medal = idx===0?'🥇':idx===1?'🥈':'🥉';
+    const ring  = idx===0?'#f5b301':idx===1?'#9aa4b0':'#c17a3f';
+    return `<div style="flex:1;max-width:150px;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center" onclick="nav('pdetail',{pid:'${p.id}'})">
+      <div class="av" style="margin:0 auto 6px;width:46px;height:46px;font-size:16px;border:2px solid ${ring}">${esc(initials(p.name))}</div>
+      <div style="font-size:22px;margin-bottom:2px">${medal}</div>
+      <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;width:100%">${esc(p.name)}</div>
+      <div class="mono" style="font-size:17px;font-weight:700;color:var(--it);margin:2px 0">${Math.round(p.rating)}</div>
+      <div class="muted" style="font-size:10px">${p.w}/${p.l}/${p.t} · ${p.games}j</div>
+      <div style="height:${h}px;width:100%;background:${ring}22;border:1.5px solid ${ring};border-bottom:none;border-radius:8px 8px 0 0;margin-top:8px;display:flex;align-items:flex-start;justify-content:center;padding-top:8px;font-size:24px;font-weight:800;color:${ring};box-sizing:border-box">${idx+1}º</div>
+    </div>`;
+  }).join('')}
+</div>`:''}
+${oficial.length===0?`<div class="card mb24"><div class="empty"><i class="ti ti-trophy"></i><p>Nenhum jogador classificado ainda.<br><span class="small">São necessárias ${PROVISIONAL_THRESHOLD} partidas em torneios finalizados.</span></p></div></div>`:`
+<div class="card p0 mb24 tov">
+<table>
+  <thead><tr><th>#</th><th>Jogador</th><th>ELO</th><th>W/L/E</th><th>WR%</th><th>Partidas</th></tr></thead>
+  <tbody>${rowsOf(oficial, false)}</tbody>
 </table>
 </div>`}
-${unranked.length>0?`
-<div class="muted small">
-  <strong>${unranked.length}</strong> jogador${unranked.length!==1?'es':''} sem ranking (menos de 3 partidas)
-</div>`:''}`;
+
+<h2 class="mb12"><i class="ti ti-hourglass" style="color:var(--wt)"></i> Ranking Provisório <span class="muted small">(${provisorio.length})</span></h2>
+${provisorio.length===0?`<div class="card mb16"><div class="empty"><i class="ti ti-hourglass-empty"></i><p>Nenhum jogador em fase de classificação.</p></div></div>`:`
+<div class="card p0 mb16 tov">
+<table>
+  <thead><tr><th>#</th><th>Jogador</th><th>ELO</th><th>W/L/E</th><th>WR%</th><th>Partidas</th><th>Status</th></tr></thead>
+  <tbody>${rowsOf(provisorio, true)}</tbody>
+</table>
+</div>
+<div class="muted small mb16">
+  <i class="ti ti-info-circle"></i> Jogadores em fase de classificação. Complete ${PROVISIONAL_THRESHOLD} partidas para entrar no Ranking Oficial.
+</div>`}
+
+${semJogo.length>0?`<div class="muted small"><strong>${semJogo.length}</strong> jogador${semJogo.length!==1?'es':''} sem partidas registradas</div>`:''}`;
 }
 
 
